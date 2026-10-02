@@ -150,7 +150,7 @@ CREATE INDEX IF NOT EXISTS idx_outbox_status ON outbox(status);
 
 const DEFAULT_SETTINGS = {
   club_name: 'Multimono ACHM',
-  default_location: 'Base nautique ACHM',
+  default_location: 'Club de voile ACHM',
   license_renew_url: 'https://www.ffvoile.fr/ffv/web/licence/',
   enforce_level: '0',
   // Planning habituel de l'ACHM (repris de la feuille « Inscription Multimono ») — 0 = lundi
@@ -172,6 +172,8 @@ const DEFAULT_SETTINGS = {
 
 const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) insertSetting.run(k, v);
+// Ancien lieu provisoire remplacé par le vrai nom (sans toucher un lieu déjà personnalisé)
+db.prepare("UPDATE settings SET value = 'Club de voile ACHM' WHERE key = 'default_location' AND value = 'Base nautique ACHM'").run();
 
 if (db.prepare('SELECT COUNT(*) n FROM levels').get().n === 0) {
   const ins = db.prepare('INSERT INTO levels (name, color, sort_order) VALUES (?, ?, ?)');

@@ -1,6 +1,6 @@
 // Service worker : coque de l'application en cache pour un chargement instantané
 // et un affichage minimal hors connexion. Les données (/api) ne sont jamais mises en cache.
-const CACHE = 'multimono-v1';
+const CACHE = 'multimono-v2';
 const SHELL = ['/', '/styles.css', '/js/app.js', '/js/lib.js', '/js/views/shared.js', '/js/views/auth.js',
   '/js/views/member.js', '/js/views/admin.js', '/icons/icon.svg', '/manifest.webmanifest'];
 

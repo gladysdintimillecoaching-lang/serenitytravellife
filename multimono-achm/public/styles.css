@@ -207,6 +207,7 @@ input, select, textarea {
 textarea { min-height: 140px; resize: vertical; }
 input:focus, select:focus, textarea:focus { border-color: var(--turquoise); background: #fff; outline: none; }
 input[type="color"] { padding: 4px; width: 64px; min-width: 64px; cursor: pointer; }
+input[type="radio"] { width: 24px; height: 24px; min-height: 0; accent-color: var(--ocean); flex: none; margin: 0; padding: 0; }
 input[type="checkbox"] { width: 26px; height: 26px; min-height: 0; accent-color: var(--ocean); flex: none; margin: 0; }
 .check { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: var(--radius-sm); background: var(--foam); border: 2px solid var(--line); cursor: pointer; }
 .check span { padding-top: 2px; }
@@ -376,6 +377,10 @@ table.table { width: 100%; border-collapse: collapse; font-size: .92rem; }
 
 .menu-list .item { min-height: 64px; }
 .menu-list .ico { width: 44px; height: 44px; border-radius: 12px; background: var(--mist); display: grid; place-items: center; font-size: 1.3rem; flex: none; }
+.tpl-row { display: grid; grid-template-columns: 1fr 1fr 72px 48px; gap: 8px; align-items: center; padding: 10px; border-radius: var(--radius-sm); background: var(--foam); border: 1px solid var(--line); }
+.tpl-row select { grid-column: 1 / -1; }
+.tpl-row input { min-width: 0; padding: 10px 8px; }
+@media (min-width: 640px) { .tpl-row { grid-template-columns: 1.3fr 1fr 1fr 80px 48px; } .tpl-row select { grid-column: auto; } }
 .swatch-row { display: flex; gap: 10px; align-items: center; }
 .level-row { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
 .level-actions { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }

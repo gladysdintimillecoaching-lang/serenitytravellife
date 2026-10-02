@@ -18,7 +18,9 @@ Langue : français · Fuseau horaire : **Indian/Mayotte (UTC+3)**.
 - Connexion par identifiant (`eric` par défaut).
 - Tableau de bord : séances du jour et de la semaine, taux de remplissage, licences arrivant à expiration, annulations tardives.
 - Séances : création unique ou **récurrente** (jours de pratique, période), modification, suppression (une séance ou toute la suite d'une série). Les inscrits sont notifiés automatiquement (app + email).
-- Liste des inscrits par séance avec badge niveau, statut de licence, présence confirmée, téléphone et contact d'urgence.
+- **Planning habituel** (repris de la feuille « Inscription Multimono ») : samedi 12h00–14h30 et 15h00–17h30, dimanche 14h00–16h30, 6 places. Créé en un clic sur une période, modifiable dans Réglages, sans doublon.
+- Liste des inscrits par séance, **numérotée 1 à 6 comme la feuille** (places libres visibles), avec badge niveau, statut de licence, présence confirmée, téléphone et contact d'urgence.
+- Inscriptions par le gérant : **inscrire un membre** (téléphone, en direct), **réserver des places pour un invité ou un groupe** sans compte (ex. un groupe de 5), **retirer un participant** (prévenu, sans pénalité).
 - Membres : filtres (niveau, licence valide / bientôt expirée / expirée), recherche, **export CSV** (compatible Excel).
 - Historique des annulations tardives.
 - Niveaux : création, renommage, suppression, ordre, **couleur au choix**.

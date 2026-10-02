@@ -185,3 +185,40 @@ test('niveaux : création avec couleur, validation', async () => {
   r = await admin('/admin/levels', { method: 'POST', body: { name: 'X', color: 'red' } });
   assert.equal(r.status, 400);
 });
+
+test('planning habituel ACHM : samedi 12h/15h + dimanche 14h, 6 places, sans doublon', async () => {
+  const from = addDays(todayLocal(), 60);
+  const monday = addDays(from, -((new Date(`${from}T12:00:00Z`).getUTCDay() + 6) % 7));
+  let r = await admin('/admin/slots/template', { method: 'POST', body: { from: monday, until: addDays(monday, 13) } });
+  assert.deepEqual(r.body, { created: 6, skipped: 0 });
+  r = await admin('/admin/slots/template', { method: 'POST', body: { from: monday, until: addDays(monday, 13) } });
+  assert.deepEqual(r.body, { created: 0, skipped: 6 });
+  const { slots } = (await alice(`/slots?from=${monday}&to=${addDays(monday, 6)}`)).body;
+  assert.deepEqual(slots.map((x) => `${x.start}-${x.end}/${x.capacity}`), ['12:00-14:30/6', '15:00-17:30/6', '14:00-16:30/6']);
+});
+
+test('gérant : invité/groupe sur plusieurs places, inscription et retrait d\'un membre', async () => {
+  const t = inHours(120);
+  await admin('/admin/slots', { method: 'POST', body: { date: t.date, start: '06:00', end: '07:00', capacity: 6 } });
+  const slot = (await alice(`/slots?from=${t.date}&to=${t.date}`)).body.slots.find((x) => x.start === '06:00');
+  let r = await admin(`/admin/slots/${slot.id}/guests`, { method: 'POST', body: { name: 'Anffane', places: 5 } });
+  assert.equal(r.status, 201);
+  r = await admin(`/admin/slots/${slot.id}/guests`, { method: 'POST', body: { name: 'Trop', places: 2 } });
+  assert.equal(r.status, 409);
+  const bobId = db.prepare("SELECT id FROM users WHERE email = 'bob@example.com'").get().id;
+  r = await admin(`/admin/slots/${slot.id}/participants`, { method: 'POST', body: { userId: bobId } });
+  assert.equal(r.status, 201);
+  const s2 = (await alice(`/slots?from=${t.date}&to=${t.date}`)).body.slots.find((x) => x.id === slot.id);
+  assert.equal(s2.full, true);
+  assert.equal((await alice(`/slots/${slot.id}/book`, { method: 'POST' })).body.code, 'full');
+  const detail = (await admin(`/admin/slots/${slot.id}`)).body;
+  assert.equal(detail.guests[0].places, 5);
+  r = await admin(`/admin/bookings/${detail.participants[0].bookingId}`, { method: 'DELETE' });
+  assert.equal(r.status, 200);
+  const notifs = (await bob('/notifications')).body.items;
+  assert.ok(notifs.some((x) => x.title.includes('retirée')));
+  r = await admin(`/admin/slots/${slot.id}`, { method: 'PUT', body: { date: t.date, start: '06:00', end: '07:00', capacity: 4 } });
+  assert.equal(r.status, 400);
+  assert.equal((await admin(`/admin/guests/${detail.guests[0].id}`, { method: 'DELETE' })).status, 200);
+  assert.equal((await alice(`/slots/${slot.id}/book`, { method: 'POST' })).status, 201);
+});

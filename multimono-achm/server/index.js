@@ -40,9 +40,9 @@ function createApp() {
   const pub = path.join(__dirname, '..', 'public');
   app.use(express.static(pub, {
     setHeaders(res, file) {
-      // HTML et service worker toujours revalidés ; le reste mis en cache court
-      if (/\.(html|webmanifest)$|sw\.js$/.test(file)) res.setHeader('Cache-Control', 'no-cache');
-      else res.setHeader('Cache-Control', 'public, max-age=3600');
+      // Code toujours revalidé (ETag) : après une mise à jour, tout le monde a la même version
+      if (/\.(png|svg)$/.test(file)) res.setHeader('Cache-Control', 'public, max-age=86400');
+      else res.setHeader('Cache-Control', 'no-cache');
     },
   }));
   return app;

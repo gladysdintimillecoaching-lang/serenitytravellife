@@ -2,10 +2,10 @@
 const crypto = require('crypto');
 const express = require('express');
 const config = require('./config');
-const { db, getSettings, setSetting } = require('./db');
+const { db, getSettings, setSetting, takenSql } = require('./db');
 const auth = require('./auth');
 const notifyLib = require('./notify');
-const { AppError, book, cancel, confirmPresence } = require('./bookings');
+const { AppError, book, cancel, confirmPresence, addGuest, removeByAdmin } = require('./bookings');
 const { localToUtc, utcToLocal, todayLocal, addDays, weekdayIndex, licenseStatus, fmtDate, fmtTime } = require('./time');
 
 const router = express.Router();
@@ -69,7 +69,7 @@ function publicUser(u) {
 function slotRows(where, params, userId) {
   return db.prepare(`
     SELECT s.*, l.name AS level_name, l.color AS level_color,
-      (SELECT COUNT(*) FROM bookings b WHERE b.slot_id = s.id AND b.status = 'booked') AS booked,
+      ${takenSql('s')} AS booked,
       (SELECT b.id FROM bookings b WHERE b.slot_id = s.id AND b.status = 'booked' AND b.user_id = ?) AS my_booking_id
     FROM slots s LEFT JOIN levels l ON l.id = s.level_id
     WHERE ${where} ORDER BY s.starts_at`).all(userId || 0, ...params)
@@ -249,7 +249,7 @@ router.post('/slots/:id/book', auth.requireAuth, wrap((req, res) => {
 router.get('/me/bookings', auth.requireAuth, wrap((req, res) => {
   const rows = db.prepare(`
     SELECT b.id AS booking_id, b.status, b.presence_confirmed_at, b.cancelled_at, s.*, l.name AS level_name, l.color AS level_color,
-      (SELECT COUNT(*) FROM bookings x WHERE x.slot_id = s.id AND x.status = 'booked') AS booked
+      ${takenSql('s')} AS booked
     FROM bookings b JOIN slots s ON s.id = b.slot_id LEFT JOIN levels l ON l.id = s.level_id
     WHERE b.user_id = ? AND s.ends_at > ? ORDER BY s.starts_at`).all(req.user.id, new Date().toISOString());
   const upcoming = rows.filter((r) => r.status === 'booked').map((r) => ({
@@ -339,13 +339,14 @@ admin.get('/slots/:id', wrap((req, res) => {
   if (!slot) throw new AppError(404, 'Séance introuvable.');
   const participants = db.prepare(`
     SELECT b.id AS booking_id, b.created_at AS booked_at, b.presence_confirmed_at, u.* FROM bookings b JOIN users u ON u.id = b.user_id
-    WHERE b.slot_id = ? AND b.status = 'booked' ORDER BY u.last_name, u.first_name`).all(slot.id)
+    WHERE b.slot_id = ? AND b.status = 'booked' ORDER BY b.created_at, b.id`).all(slot.id)
     .map((r) => ({ ...publicUser(r), bookingId: r.booking_id, bookedAt: r.booked_at, presenceConfirmed: Boolean(r.presence_confirmed_at),
       sessionLicense: licenseStatus(r.license_expires, slot.date) }));
   const cancellations = db.prepare(`SELECT b.status, b.cancelled_at, u.first_name, u.last_name FROM bookings b JOIN users u ON u.id = b.user_id
     WHERE b.slot_id = ? AND b.status IN ('cancelled','late_cancelled') ORDER BY b.cancelled_at DESC`).all(slot.id);
   const seriesCount = slot.seriesId ? db.prepare('SELECT COUNT(*) n FROM slots WHERE series_id = ? AND starts_at >= ?').get(slot.seriesId, slot.startsAt).n : 0;
-  res.json({ slot, participants, cancellations, seriesCount });
+  const guests = db.prepare('SELECT * FROM slot_guests WHERE slot_id = ? ORDER BY id').all(slot.id);
+  res.json({ slot, participants, guests, cancellations, seriesCount });
 }));
 
 const activeBookers = (slotId) => db.prepare(`SELECT u.* FROM bookings b JOIN users u ON u.id = b.user_id WHERE b.slot_id = ? AND b.status = 'booked'`).all(slotId);
@@ -357,7 +358,8 @@ admin.put('/slots/:id', wrap((req, res) => {
   const d = date(req.body.date, 'Date');
   const after = { ...before, starts_at: localToUtc(d, s.start), ends_at: localToUtc(d, s.end), capacity: s.capacity, level_id: s.levelId, location: s.location, notes: s.notes };
   const booked = activeBookers(before.id);
-  if (s.capacity < booked.length) throw new AppError(400, `Impossible : ${booked.length} participants sont déjà inscrits. Le nombre de places ne peut pas être inférieur.`);
+  const taken = booked.length + db.prepare('SELECT COALESCE(SUM(places), 0) n FROM slot_guests WHERE slot_id = ?').get(before.id).n;
+  if (s.capacity < taken) throw new AppError(400, `Impossible : ${taken} places sont déjà prises. Le nombre de places ne peut pas être inférieur.`);
 
   const changes = [];
   if (before.starts_at !== after.starts_at || before.ends_at !== after.ends_at) {
@@ -390,6 +392,69 @@ admin.delete('/slots/:id', wrap((req, res) => {
     for (const u of users) { notifyLib.slotDeleted(u, t); notified++; }
   }
   res.json({ deleted: targets.length, notified });
+}));
+
+// Inscriptions faites par le gérant (téléphone, invités, groupes)
+admin.post('/slots/:id/participants', wrap((req, res) => {
+  const user = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'member'").get(Number(req.body?.userId));
+  if (!user) throw new AppError(404, 'Membre introuvable.');
+  const booking = book(user, Number(req.params.id), { byAdmin: true });
+  res.status(201).json({ bookingId: booking.id });
+}));
+
+admin.post('/slots/:id/guests', wrap((req, res) => {
+  const id = addGuest(Number(req.params.id), {
+    name: str(req.body?.name, 'Nom', { max: 80 }), places: int(req.body?.places ?? 1, 'Nombre de places', 1, 500),
+    phone: str(req.body?.phone, 'Téléphone', { required: false, max: 30 }), note: str(req.body?.note, 'Remarque', { required: false, max: 200 }),
+  });
+  res.status(201).json({ id });
+}));
+
+admin.delete('/guests/:id', wrap((req, res) => {
+  const info = db.prepare('DELETE FROM slot_guests WHERE id = ?').run(Number(req.params.id));
+  if (!info.changes) throw new AppError(404, 'Invité introuvable.');
+  res.json({ ok: true });
+}));
+
+admin.delete('/bookings/:id', wrap((req, res) => {
+  removeByAdmin(Number(req.params.id));
+  res.json({ ok: true });
+}));
+
+// Planning habituel : modèle hebdomadaire appliqué sur une période
+function readTemplate(raw) {
+  let rows;
+  try { rows = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { rows = null; }
+  if (!Array.isArray(rows) || rows.length > 30) throw new AppError(400, 'Planning habituel invalide.');
+  return rows.map((r) => {
+    const start = time(r.start, 'Début'); const end = time(r.end, 'Fin');
+    if (end <= start) throw new AppError(400, 'Dans le planning habituel, chaque fin doit être après le début.');
+    return { weekday: int(r.weekday, 'Jour', 0, 6), start, end, capacity: int(r.capacity, 'Places', 1, 500), levelId: levelId(r.levelId) };
+  });
+}
+
+admin.post('/slots/template', wrap((req, res) => {
+  const tpl = readTemplate(getSettings().weekly_template);
+  if (!tpl.length) throw new AppError(400, 'Le planning habituel est vide. Configurez-le dans Réglages.');
+  const from = date(req.body?.from, 'Date de début'); const until = date(req.body?.until, 'Date de fin');
+  if (until < from) throw new AppError(400, 'La date de fin doit être après la date de début.');
+  const location = str(req.body?.location, 'Lieu', { required: false, max: 160 });
+  const exists = db.prepare('SELECT 1 FROM slots WHERE starts_at = ?');
+  const ins = db.prepare('INSERT INTO slots (starts_at, ends_at, capacity, level_id, location, series_id) VALUES (?, ?, ?, ?, ?, ?)');
+  const result = db.transaction(() => {
+    const seriesId = Number(db.prepare('INSERT INTO series (description) VALUES (?)').run('Planning habituel').lastInsertRowid);
+    let created = 0; let skipped = 0;
+    for (let d = from; d <= until; d = addDays(d, 1)) {
+      for (const t of tpl.filter((x) => x.weekday === weekdayIndex(d))) {
+        const startsAt = localToUtc(d, t.start);
+        if (exists.get(startsAt)) { skipped++; continue; } // pas de doublon si déjà créée
+        ins.run(startsAt, localToUtc(d, t.end), t.capacity, t.levelId, location, seriesId);
+        if (++created > 400) throw new AppError(400, 'Trop de séances d\'un coup (400 max). Réduisez la période.');
+      }
+    }
+    return { created, skipped };
+  })();
+  res.status(201).json(result);
 }));
 
 function memberQuery(q) {
@@ -438,7 +503,7 @@ admin.get('/members/:id', wrap((req, res) => {
   const u = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'member'").get(Number(req.params.id));
   if (!u) throw new AppError(404, 'Membre introuvable.');
   const upcoming = db.prepare(`SELECT s.*, l.name AS level_name, l.color AS level_color,
-      (SELECT COUNT(*) FROM bookings x WHERE x.slot_id = s.id AND x.status = 'booked') AS booked
+      ${takenSql('s')} AS booked
     FROM bookings b JOIN slots s ON s.id = b.slot_id LEFT JOIN levels l ON l.id = s.level_id
     WHERE b.user_id = ? AND b.status = 'booked' AND s.starts_at > ? ORDER BY s.starts_at`).all(u.id, new Date().toISOString()).map(serializeSlot);
   const late = db.prepare('SELECT * FROM late_cancellations WHERE user_id = ? ORDER BY cancelled_at DESC').all(u.id);
@@ -499,7 +564,7 @@ admin.get('/levels/:id/usage', wrap((req, res) => {
   });
 }));
 
-const EDITABLE_SETTINGS = ['club_name', 'default_location', 'license_renew_url', 'rules_text', 'enforce_level'];
+const EDITABLE_SETTINGS = ['club_name', 'default_location', 'license_renew_url', 'rules_text', 'enforce_level', 'weekly_template'];
 admin.get('/settings', (_req, res) => {
   const s = getSettings();
   res.json(Object.fromEntries(EDITABLE_SETTINGS.map((k) => [k, s[k]])));
@@ -509,7 +574,10 @@ admin.put('/settings', wrap((req, res) => {
   if (b.license_renew_url && !/^https?:\/\//.test(b.license_renew_url)) throw new AppError(400, 'Le lien de renouvellement doit commencer par https://');
   for (const k of EDITABLE_SETTINGS) {
     if (b[k] === undefined) continue;
-    const v = k === 'enforce_level' ? (b[k] === true || b[k] === '1' ? '1' : '0') : str(b[k], k, { max: k === 'rules_text' ? 10000 : 300 });
+    let v;
+    if (k === 'enforce_level') v = b[k] === true || b[k] === '1' ? '1' : '0';
+    else if (k === 'weekly_template') v = JSON.stringify(readTemplate(b[k]));
+    else v = str(b[k], k, { max: k === 'rules_text' ? 10000 : 300 });
     setSetting(k, v);
   }
   res.json({ ok: true });

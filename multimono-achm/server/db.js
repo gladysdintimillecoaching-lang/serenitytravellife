@@ -117,6 +117,18 @@ CREATE TABLE IF NOT EXISTS license_alerts (
   PRIMARY KEY (user_id, expires, kind)
 );
 
+-- Places réservées par le gérant pour un invité ou un groupe (inscription par téléphone, etc.)
+CREATE TABLE IF NOT EXISTS slot_guests (
+  id INTEGER PRIMARY KEY,
+  slot_id INTEGER NOT NULL REFERENCES slots(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  places INTEGER NOT NULL DEFAULT 1 CHECK (places > 0),
+  phone TEXT,
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_guests_slot ON slot_guests(slot_id);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -141,6 +153,12 @@ const DEFAULT_SETTINGS = {
   default_location: 'Base nautique ACHM',
   license_renew_url: 'https://www.ffvoile.fr/ffv/web/licence/',
   enforce_level: '0',
+  // Planning habituel de l'ACHM (repris de la feuille « Inscription Multimono ») — 0 = lundi
+  weekly_template: JSON.stringify([
+    { weekday: 5, start: '12:00', end: '14:30', capacity: 6 },
+    { weekday: 5, start: '15:00', end: '17:30', capacity: 6 },
+    { weekday: 6, start: '14:00', end: '16:30', capacity: 6 },
+  ]),
   rules_text: [
     'Règlement intérieur du club — Multimono ACHM',
     '',
@@ -172,4 +190,8 @@ function setSetting(key, value) {
     .run(key, String(value));
 }
 
-module.exports = { db, getSettings, setSetting, DEFAULT_SETTINGS };
+/** Nombre de places occupées d'une séance (réservations + invités ajoutés par le gérant) */
+const takenSql = (alias) => `((SELECT COUNT(*) FROM bookings bk WHERE bk.slot_id = ${alias}.id AND bk.status = 'booked')
+  + (SELECT COALESCE(SUM(g.places), 0) FROM slot_guests g WHERE g.slot_id = ${alias}.id))`;
+
+module.exports = { db, getSettings, setSetting, takenSql, DEFAULT_SETTINGS };

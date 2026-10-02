@@ -97,6 +97,21 @@ function slotDeleted(user, slot) {
   });
 }
 
+function removedByAdmin(user, slot) {
+  notify(user, {
+    type: 'slot_deleted',
+    title: 'Réservation retirée par le gérant',
+    body: `Le gérant a retiré votre inscription à la séance du ${short(slot)}. Contactez-le si besoin.`,
+    data: { slotId: slot.id },
+    email: {
+      subject: `Votre réservation du ${short(slot)} a été retirée`,
+      lines: [`Bonjour ${user.first_name},`, 'Le gérant a retiré votre inscription à la séance suivante (sans pénalité).'],
+      details: slotDetails(slot),
+      buttons: [{ label: 'Réserver un autre créneau', url: `${config.appUrl}/#/calendrier` }],
+    },
+  });
+}
+
 function lateCancellation(member, slot, hoursBefore) {
   for (const a of admins()) {
     notify(a, {
@@ -141,4 +156,4 @@ function passwordReset(user, token) {
   }));
 }
 
-module.exports = { notify, bookingConfirmed, reminder, slotChanged, slotDeleted, lateCancellation, licenseAlert, passwordReset };
+module.exports = { notify, bookingConfirmed, reminder, slotChanged, slotDeleted, removedByAdmin, lateCancellation, licenseAlert, passwordReset };

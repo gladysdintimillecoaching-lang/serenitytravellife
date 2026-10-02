@@ -1,0 +1,20 @@
+{
+  "name": "multimono-achm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multimono ACHM — réservation des sessions de multimono du club de voile",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "express": "^5.1.0",
+    "nodemailer": "^10.0.13"
+  }
+}

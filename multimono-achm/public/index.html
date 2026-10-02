@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Multimono ACHM</title>
+  <meta name="description" content="Réservez vos sessions de multimono au club de voile ACHM.">
+  <meta name="theme-color" content="#0b3954">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#view">Aller au contenu</a>
+  <header class="topbar" id="topbar"></header>
+  <main id="view" tabindex="-1" aria-live="polite">
+    <div class="loading"><div class="boat-spin" aria-hidden="true"></div><p>Chargement…</p></div>
+  </main>
+  <nav class="tabbar" id="tabbar" aria-label="Navigation principale"></nav>
+  <div id="modal-root"></div>
+  <div id="toast-root" aria-live="assertive"></div>
+  <noscript><p style="padding:2rem;text-align:center">Activez JavaScript pour utiliser Multimono ACHM.</p></noscript>
+</body>
+</html>

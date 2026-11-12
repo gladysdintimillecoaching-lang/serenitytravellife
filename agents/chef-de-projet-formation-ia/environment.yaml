@@ -1,0 +1,2 @@
+# Environnement cloud de l'agent : pas d'accès web général, seulement les serveurs MCP.
+config: {type: cloud, networking: {type: limited, allow_mcp_servers: true, allow_package_managers: false}}

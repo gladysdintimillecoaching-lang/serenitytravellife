@@ -1,0 +1,12 @@
+# Lancement automatique chaque jour de semaine à 6h47, heure de Mayotte.
+agent: ./agent.md
+environment_id: ./environment.yaml
+vault_ids: []          # À REMPLIR avec l'identifiant vlt_... après la 1re application (README, étape 4)
+budget: {type: limit, max_list_cost: {amount: "200", currency: USD}}   # plafond de 2 $ par run
+schedule: {type: cron, expression: "47 6 * * 1-5", timezone: Indian/Mayotte}
+initial_events:
+  - type: user.message
+    content:
+      - type: text
+        text: |
+          Fais le point du jour sur le projet Formation IA en ligne : mets le planning à jour, prépare le brouillon du jour si possible, puis envoie-moi l'e-mail de la tâche du jour.

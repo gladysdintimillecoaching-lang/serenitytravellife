@@ -1,0 +1,3 @@
+# Coffre-fort des accès Google (le contenant seulement : aucun secret ici).
+type: vault
+display_name: chef-de-projet-formation-ia

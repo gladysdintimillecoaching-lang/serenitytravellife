@@ -45,7 +45,8 @@ module.exports = {
   credit: {
     name: env.CREDIT_NAME || 'Serenity Life SAS',
     pitch: env.CREDIT_PITCH ?? 'Besoin d\'une application comme celle-ci ? Contactez Gladys',
-    phone: env.CREDIT_PHONE || '',
-    email: env.CREDIT_EMAIL || '',
+    phone: env.CREDIT_PHONE || '+262 639 55 29 74',
+    email: env.CREDIT_EMAIL || 'contact@serenitytravellife.com',
+    logo: env.CREDIT_LOGO || '/icons/serenity-lotus.png',
   },
 };

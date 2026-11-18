@@ -53,9 +53,11 @@ function renderCredit() {
   const c = state.config?.credit;
   if (!c?.name) return mount($('#credit'), '');
   const tel = (c.phone || '').replace(/[^\d+]/g, '');
-  mount($('#credit'), html`<p>Application créée par <strong>${c.name}</strong></p>
+  mount($('#credit'), html`${c.logo ? html`<img class="credit-logo" src="${c.logo}" alt="Logo ${c.name}" width="104" height="80" loading="lazy">` : ''}
+    <p>Application créée par <strong>${c.name}</strong></p>
     ${c.pitch ? html`<p class="pitch">${c.pitch}</p>` : ''}
-    ${c.phone || c.email ? html`<p>${c.phone ? html`📞 <a href="tel:${tel}">${c.phone}</a>` : ''}${c.phone && c.email ? ' · ' : ''}${c.email ? html`✉️ <a href="mailto:${c.email}">${c.email}</a>` : ''}</p>` : ''}`);
+    ${c.phone ? html`<p>📞 <a href="tel:${tel}">${c.phone}</a></p>` : ''}
+    ${c.email ? html`<p>✉️ <a href="mailto:${c.email}">${c.email}</a></p>` : ''}`);
 }
 
 export function renderChrome() {

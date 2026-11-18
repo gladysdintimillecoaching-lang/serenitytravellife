@@ -615,7 +615,7 @@ admin.get('/members.csv', wrap((req, res) => {
   });
   const csv = '﻿' + [cols, ...rows].map((r) => r.map(cell).join(';')).join('\r\n');
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="membres-multimono-${todayLocal()}.csv"`);
+  res.setHeader('Content-Disposition', `attachment; filename="membres-ecole-de-voile-achm-${todayLocal()}.csv"`);
   res.send(csv);
 }));
 

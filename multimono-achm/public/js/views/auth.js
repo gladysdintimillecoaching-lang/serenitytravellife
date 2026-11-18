@@ -19,7 +19,7 @@ function afterLogin(user) {
 export async function login(root) {
   mount(root, html`
     <div class="auth-wrap">
-      ${hero('Réservez vos sessions de multimono en un clic 🌊')}
+      ${hero('Réservez vos séances de voile en un clic 🌊')}
       <form class="card form" id="f" novalidate>
         <div class="field"><label for="login">Email ou identifiant</label>
           <input id="login" name="login" type="text" autocomplete="username" inputmode="email" autocapitalize="none" placeholder="ex. : prenom.nom ou votre email" required></div>

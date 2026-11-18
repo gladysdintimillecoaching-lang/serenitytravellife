@@ -1,6 +1,6 @@
-# ⛵ Multimono ACHM
+# ⛵ École de voile ACHM
 
-Application web (mobile en priorité) de réservation des sessions de multimono du club de voile ACHM.
+Application web (mobile en priorité) de réservation des séances de l'école de voile ACHM : Multimono, Laser, Opti Loisir, Planche à voile, École de sport. Le nom affiché est modifiable par Eric dans Réglages.
 Langue : français · Fuseau horaire : **Indian/Mayotte (UTC+3)**.
 
 ## Fonctionnalités

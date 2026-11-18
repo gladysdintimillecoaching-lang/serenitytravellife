@@ -1,7 +1,7 @@
 {
-  "name": "Multimono ACHM",
-  "short_name": "Multimono",
-  "description": "Réservation des sessions de multimono du club de voile ACHM",
+  "name": "École de voile ACHM",
+  "short_name": "Voile ACHM",
+  "description": "Réservation des séances de l'École de voile ACHM",
   "lang": "fr",
   "start_url": "/#/calendrier",
   "scope": "/",

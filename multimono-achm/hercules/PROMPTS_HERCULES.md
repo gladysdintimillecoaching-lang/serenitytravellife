@@ -1,10 +1,10 @@
-# Multimono ACHM — Kit d'installation sur Hercules
+# École de voile ACHM — Kit d'installation sur Hercules
 
 Hercules construit l'application en discutant avec son IA (frontend, base de données, connexion, emails, tâches planifiées et hébergement inclus).
 Ce kit contient **les messages à copier-coller dans le chat Hercules, dans l'ordre**. Ils décrivent exactement l'application déjà construite et testée (dossier `multimono-achm/`), qui sert de référence.
 
 **Mode d'emploi**
-1. Créez un nouveau projet Hercules nommé **Multimono ACHM**.
+1. Créez un nouveau projet Hercules nommé **École de voile ACHM**.
 2. Collez le **Message 1**, attendez que Hercules ait fini, vérifiez dans l'aperçu (checklist sous chaque message).
 3. Passez au message suivant. Un message à la fois : l'IA travaille mieux par étapes.
 4. À la fin, configurez l'expéditeur des emails et le domaine, puis cliquez sur **Publier**.
@@ -16,7 +16,7 @@ Astuce : si quelque chose ne correspond pas, répondez simplement à Hercules «
 ## Message 1 — Fondations, design et inscription
 
 ```
-Crée une application web responsive, mobile en priorité, appelée « Multimono ACHM », pour le club de voile ACHM à Mayotte qui propose des sessions de multimono. Toute l'interface est en français. Fuseau horaire unique : Indian/Mayotte (UTC+3, pas d'heure d'été) — toutes les dates et heures affichées et saisies sont à l'heure de Mayotte.
+Crée une application web responsive, mobile en priorité, appelée « École de voile ACHM », pour l'école de voile ACHM à Mayotte (Multimono, Laser, Opti Loisir, Planche à voile, École de sport). Toute l'interface est en français. Fuseau horaire unique : Indian/Mayotte (UTC+3, pas d'heure d'été) — toutes les dates et heures affichées et saisies sont à l'heure de Mayotte.
 
 DESIGN
 - Thème inspiré de la mer. Couleurs : bleu abysse #0B3954 (titres, barre du haut), bleu océan #0E7490 (boutons principaux), turquoise #22B8CF (accents), lagon #5EEAD4, blanc écume #F7FCFD et fond #EAF6F8, sable #F6E7C8 (cartes secondaires), corail #F97352 (badges d'alerte), rouge #DC2626 (danger).
@@ -48,11 +48,11 @@ NIVEAUX DE NAVIGATION
 - La couleur du niveau apparaît en badge (pastille arrondie, texte blanc) sur le profil du participant et dans toutes les listes d'Eric.
 
 RÉGLAGES DU CLUB (modifiables par Eric, page « Réglages »)
-- Nom de l'application : « Multimono ACHM »
+- Nom de l'application : « École de voile ACHM » (modifiable par Eric)
 - Lieu par défaut des séances : « Club de voile ACHM »
 - Lien « Renouveler ma licence » : https://www.ffvoile.fr/ffv/web/licence/
 - Règlement du club (texte long). Texte par défaut :
-  « Règlement intérieur du club — Multimono ACHM
+  « Règlement intérieur du club — École de voile ACHM
   1. Le port du gilet de sauvetage est obligatoire sur l'eau.
   2. Une licence en cours de validité est obligatoire pour participer aux séances.
   3. Toute annulation doit être faite au minimum 24 h avant la séance.
@@ -151,7 +151,7 @@ ANNULATION PAR LE PARTICIPANT
 
 NOTIFICATIONS DANS L'APPLICATION
 - Une cloche dans la barre du haut avec un compteur de notifications non lues (rafraîchi chaque minute) ; page « Notifications » listant les 50 dernières, les non lues surlignées en turquoise ; tout passe en « lu » à l'ouverture de la page.
-- Chaque notification importante est AUSSI envoyée par email (gabarit aux couleurs de l'application : bandeau dégradé bleu avec « ⛵ Multimono ACHM », tableau Date / Horaire / Niveau / Lieu, boutons arrondis, encadré sable pour les avertissements, lien « ouvrir l'application » en pied de page).
+- Chaque notification importante est AUSSI envoyée par email (gabarit aux couleurs de l'application : bandeau dégradé bleu avec « ⛵ École de voile ACHM », tableau Date / Horaire / Niveau / Lieu, boutons arrondis, encadré sable pour les avertissements, lien « ouvrir l'application » en pied de page).
 - Types de notifications :
   1. Confirmation de réservation (au participant).
   2. RAPPEL H-24 (voir ci-dessous).
@@ -180,10 +180,10 @@ ALERTES DE LICENCE
 
 JOYEUX ANNIVERSAIRE
 - Tâche planifiée : chaque jour à 00:00 (heure de Mayotte), pour chaque membre dont c'est l'anniversaire (date de naissance de sa carte d'inscription), envoyer une notification + un email, UNE SEULE FOIS par an (si le serveur redémarre, ne jamais l'envoyer deux fois). Un membre né un 29 février le reçoit le 28 février les années non bissextiles.
-- Objet : « Joyeux anniversaire Prénom ! 🎂⛵ ». Texte : « Bonjour Prénom, Toute l'équipe du club vous souhaite un très joyeux anniversaire ! 🎉 Que cette nouvelle année vous apporte bon vent, belle mer et de magnifiques sessions de multimono. Au plaisir de vous retrouver très vite sur l'eau. Eric et l'équipe Multimono ACHM », bouton « Réserver ma prochaine séance ».
+- Objet : « Joyeux anniversaire Prénom ! 🎂⛵ ». Texte : « Bonjour Prénom, Toute l'équipe du club vous souhaite un très joyeux anniversaire ! 🎉 Que cette nouvelle année vous apporte bon vent, belle mer et de magnifiques navigations avec le club. Au plaisir de vous retrouver très vite sur l'eau. Eric et l'équipe École de voile ACHM », bouton « Réserver ma prochaine séance ».
 
 EMAILS
-- Envoi via le service d'email intégré de Hercules, avec file d'attente et réessais en cas d'échec. Expéditeur : « Multimono ACHM ».
+- Envoi via le service d'email intégré de Hercules, avec file d'attente et réessais en cas d'échec. Expéditeur : « École de voile ACHM ».
 ```
 
 **À vérifier :** annuler une séance à plus de 24 h (place libérée), à moins de 24 h (fenêtre rouge + ligne dans l'historique + notification à Eric), recevoir un email de confirmation.

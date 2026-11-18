@@ -52,7 +52,7 @@ if (require.main === module) {
   auth.ensureAdmin();
   const app = createApp();
   app.listen(config.port, () => {
-    console.log(`⛵ Multimono ACHM en ligne sur ${config.appUrl} (port ${config.port})`);
+    console.log(`⛵ École de voile ACHM en ligne sur ${config.appUrl} (port ${config.port})`);
     if (!emailEnabled) console.log('ℹ️  SMTP non configuré : les emails sont affichés dans la console au lieu d\'être envoyés.');
   });
   scheduler.start();

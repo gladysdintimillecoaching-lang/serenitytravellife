@@ -253,7 +253,7 @@ function schoolTemplate() {
 }
 
 const DEFAULT_SETTINGS = {
-  club_name: 'Multimono ACHM',
+  club_name: 'École de voile ACHM',
   default_location: 'Club de voile ACHM',
   license_renew_url: 'https://www.ffvoile.fr/ffv/web/licence/',
   enforce_level: '0',
@@ -265,7 +265,7 @@ const DEFAULT_SETTINGS = {
     { weekday: 6, start: '14:00', end: '16:30', capacity: 6 },
   ]),
   rules_text: [
-    'Règlement intérieur du club — Multimono ACHM',
+    'Règlement intérieur du club — École de voile ACHM',
     '',
     '1. Le port du gilet de sauvetage est obligatoire sur l\'eau.',
     '2. Une licence en cours de validité est obligatoire pour participer aux séances.',
@@ -298,6 +298,13 @@ if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migration_activities_v1'").
     }
     db.prepare("INSERT INTO settings (key, value) VALUES ('migration_activities_v1', '1')").run();
   })();
+}
+
+// Nom de l'application : « École de voile ACHM » (une seule fois ; Eric peut le changer dans Réglages)
+if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migration_name_v1'").get()) {
+  db.prepare("UPDATE settings SET value = 'École de voile ACHM' WHERE key = 'club_name' AND value = 'Multimono ACHM'").run();
+  db.prepare("UPDATE settings SET value = replace(value, 'Règlement intérieur du club — Multimono ACHM', 'Règlement intérieur du club — École de voile ACHM') WHERE key = 'rules_text'").run();
+  db.prepare("INSERT INTO settings (key, value) VALUES ('migration_name_v1', '1')").run();
 }
 
 // Opti Loisir : 12 participants maximum (activité, planning habituel, séances à venir)

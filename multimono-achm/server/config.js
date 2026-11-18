@@ -33,7 +33,7 @@ module.exports = {
     secure: env.SMTP_SECURE === 'true',
     user: env.SMTP_USER || '',
     pass: env.SMTP_PASS || '',
-    from: env.MAIL_FROM || 'Multimono ACHM <no-reply@multimono-achm.fr>',
+    from: env.MAIL_FROM || 'École de voile ACHM <no-reply@ecole-de-voile-achm.fr>',
   },
   // Délai d'annulation sans pénalité
   cancelLimitHours: 24,

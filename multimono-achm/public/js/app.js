@@ -66,7 +66,7 @@ export function renderChrome() {
   const dot = (h) => (state.unread && (h === '#/notifications' || (h === '#/admin/plus')) ? html`<span class="dot">${state.unread > 9 ? '9+' : state.unread}</span>` : '');
   mount($('#topbar'), html`
     <div class="topbar-inner">
-      <a class="brand" href="${home()}"><img src="/icons/icon.svg" alt=""><span>${state.config?.clubName || 'Multimono ACHM'}<small>${state.user?.role === 'admin' ? 'Espace gérant' : 'Club de voile'}</small></span></a>
+      <a class="brand" href="${home()}"><img src="/icons/icon.svg" alt=""><span>${state.config?.clubName || 'École de voile ACHM'}<small>${state.user?.role === 'admin' ? 'Espace gérant' : 'Club de voile'}</small></span></a>
       <span class="spacer"></span>
       ${nav ? html`<nav class="top-links" aria-label="Navigation">${nav.map(([h, , l]) => html`<a href="${h}" class="${isActive(h) ? 'active' : ''}">${l}</a>`)}</nav>
         <a class="icon-btn" href="#/notifications" aria-label="Notifications">${icon('bell')}${state.unread ? html`<span class="dot">${state.unread > 9 ? '9+' : state.unread}</span>` : ''}</a>` : ''}

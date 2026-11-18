@@ -191,15 +191,36 @@ test('niveaux : création avec couleur, validation', async () => {
   assert.equal(r.status, 400);
 });
 
-test('planning habituel ACHM : samedi 12h/15h + dimanche 14h, 6 places, sans doublon', async () => {
+test('planning de l\'école de voile : 13 séances par semaine, activités et groupes PAV, sans doublon', async () => {
   const from = addDays(todayLocal(), 60);
   const monday = addDays(from, -((new Date(`${from}T12:00:00Z`).getUTCDay() + 6) % 7));
   let r = await admin('/admin/slots/template', { method: 'POST', body: { from: monday, until: addDays(monday, 13) } });
-  assert.deepEqual(r.body, { created: 6, skipped: 0 });
+  assert.deepEqual(r.body, { created: 26, skipped: 0 });
   r = await admin('/admin/slots/template', { method: 'POST', body: { from: monday, until: addDays(monday, 13) } });
-  assert.deepEqual(r.body, { created: 0, skipped: 6 });
+  assert.deepEqual(r.body, { created: 0, skipped: 26 });
   const { slots } = (await alice(`/slots?from=${monday}&to=${addDays(monday, 6)}`)).body;
-  assert.deepEqual(slots.map((x) => `${x.start}-${x.end}/${x.capacity}`), ['12:00-14:30/6', '15:00-17:30/6', '14:00-16:30/6']);
+  const view = slots.map((x) => `${x.date.slice(8)}|${x.start}-${x.end}|${x.activity.name}${x.label ? `|${x.label}` : ''}`);
+  const d = (n) => addDays(monday, n).slice(8);
+  assert.deepEqual(view, [
+    `${d(2)}|14:00-16:30|École de sport`,
+    `${d(3)}|09:00-12:00|Multimono en semaine`,
+    `${d(4)}|08:30-11:30|Laser en semaine`,
+    `${d(4)}|14:00-16:30|Opti Loisir`,
+    `${d(5)}|09:00-11:30|Multimono week-end`,
+    `${d(5)}|09:30-12:00|Planche à voile (PAV)`,
+    `${d(5)}|12:00-14:30|Multimono week-end`,
+    `${d(5)}|14:00-17:00|Laser week-end`,
+    `${d(5)}|15:00-17:30|Multimono week-end`,
+    `${d(6)}|09:00-11:30|Planche à voile (PAV)|1 · Débutant`,
+    `${d(6)}|12:00-14:30|Planche à voile (PAV)|2 · Junior`,
+    `${d(6)}|14:00-17:00|Laser week-end`,
+    `${d(6)}|15:00-17:30|Planche à voile (PAV)|3 · Confirmé`,
+  ]);
+  assert.ok(slots.every((x) => x.capacity === 6));
+  // Eric gère les activités (nom + couleur)
+  const acts = (await admin('/admin/activities', { method: 'POST', body: { name: 'Catamaran', color: '#123456' } })).body.activities;
+  assert.ok(acts.some((x) => x.name === 'Catamaran'));
+  assert.equal((await alice('/admin/activities', { method: 'POST', body: { name: 'X', color: '#123456' } })).status, 403);
 });
 
 test('gérant : invité/groupe sur plusieurs places, inscription et retrait d\'un membre', async () => {

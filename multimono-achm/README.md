@@ -19,7 +19,20 @@ Langue : français · Fuseau horaire : **Indian/Mayotte (UTC+3)**.
 - Connexion par identifiant (`eric` par défaut).
 - Tableau de bord : séances du jour et de la semaine, taux de remplissage, licences arrivant à expiration, annulations tardives.
 - Séances : création unique ou **récurrente** (jours de pratique, période), modification, suppression (une séance ou toute la suite d'une série). Les inscrits sont notifiés automatiquement (app + email).
-- **Planning habituel** (repris de la feuille « Inscription Multimono ») : samedi 12h00–14h30 et 15h00–17h30, dimanche 14h00–16h30, 6 places. Créé en un clic sur une période, modifiable dans Réglages, sans doublon.
+- **Activités de l'école de voile** : chaque séance appartient à une activité (nom + couleur, gérées par Eric dans « Plus › Activités de l'école »), avec un groupe optionnel (ex. « 1 · Débutant »). Les membres filtrent le calendrier par activité ; l'activité figure dans les emails et le rappel.
+- **Planning habituel de l'école** (13 séances par semaine, 6 places chacune, modifiable dans Réglages, créé en un clic sur une période, sans doublon) :
+
+  | Jour | Horaire | Activité |
+  |---|---|---|
+  | Mercredi | 14h00 – 16h30 | École de sport |
+  | Jeudi | 9h00 – 12h00 | Multimono en semaine |
+  | Vendredi | 8h30 – 11h30 | Laser en semaine |
+  | Vendredi | 14h00 – 16h30 | Opti Loisir |
+  | Samedi | 9h00 – 11h30 · 12h00 – 14h30 · 15h00 – 17h30 | Multimono week-end |
+  | Samedi | 9h30 – 12h00 | Planche à voile (PAV) |
+  | Samedi | 14h00 – 17h00 | Laser week-end |
+  | Dimanche | 9h00 – 11h30 (1 · Débutant) · 12h00 – 14h30 (2 · Junior) · 15h00 – 17h30 (3 · Confirmé) | Planche à voile (PAV) |
+  | Dimanche | 14h00 – 17h00 | Laser week-end |
 - Liste des inscrits par séance, **numérotée 1 à 6 comme la feuille** (places libres visibles), avec badge niveau, statut de licence, présence confirmée, téléphone et contact d'urgence.
 - Inscriptions par le gérant : **inscrire un membre** (téléphone, en direct), **réserver des places pour un invité ou un groupe** sans compte (ex. un groupe de 5), **retirer un participant** (prévenu, sans pénalité).
 - Membres : filtres (niveau, licence valide / bientôt expirée / expirée), recherche, **export CSV** (compatible Excel).

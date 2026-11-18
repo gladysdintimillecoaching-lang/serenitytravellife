@@ -1,10 +1,11 @@
 import { api, state, html, mount, $, $$, icon, modal, toast, busy, formData, showError, levelBadge, licenseBadge, rewardBadge, rewardBg, safeColor,
-  today, addDays, mondayOf, fmtDay, fmtFull, fmtH, fmtDateTime, initials, go } from '../lib.js';
-import { placesBar, emptyState } from './shared.js';
+  today, addDays, mondayOf, fmtDay, fmtFull, fmtH, fmtDateTime, initials, go, activityTitle, slotColor } from '../lib.js';
+import { placesBar, emptyState, activityFilter, filterByActivity, savedActivity, saveActivity, revealActiveChip } from './shared.js';
 import { autoRefresh, weekNav, dayStrip, dayGroups, logout } from './member.js';
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const WEEKDAYS_LONG = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+const actName = (id) => (state.config.activities || []).find((a) => a.id === id)?.name;
 
 async function reloadConfig() {
   state.config = await api('/public/config');
@@ -13,10 +14,10 @@ async function reloadConfig() {
 
 /** Carte séance côté gérant (cliquable vers la liste des inscrits) */
 function adminSlotCard(s, { showDate = false } = {}) {
-  return html`<article class="slot ${s.past ? 'past' : ''}" style="--slot-color:${safeColor(s.level?.color)}">
+  return html`<article class="slot ${s.past ? 'past' : ''}" style="--slot-color:${slotColor(s)}">
     <a class="slot-link" href="#/admin/seance/${s.id}">
       <div class="slot-head">
-        <div>${showDate ? html`<div class="small muted" style="font-weight:700">${fmtDay(s.date)}</div>` : ''}
+        <div>${showDate ? html`<div class="small muted" style="font-weight:700">${fmtDay(s.date)}</div>` : ''}${activityTitle(s)}
           <div class="slot-time">${fmtH(s.start)} <small>– ${fmtH(s.end)}</small></div></div>
         ${levelBadge(s.level)}
       </div>
@@ -51,7 +52,7 @@ export async function dashboard(root) {
           <div class="card-title" style="margin-top:18px"><h2>Cette semaine</h2><a class="small" href="#/admin/seances">Calendrier ›</a></div>
           ${d.weekSlots.length ? html`<div class="card"><div class="list">${d.weekSlots.map((s) => html`
             <a class="item" href="#/admin/seance/${s.id}" style="box-shadow:none;padding:8px 4px">
-              <div class="grow"><div class="name">${fmtDay(s.date, { weekday: 'short', day: 'numeric', month: 'short' })} · ${fmtH(s.start)}</div>
+              <div class="grow"><div class="name">${fmtDay(s.date, { weekday: 'short', day: 'numeric', month: 'short' })} · ${fmtH(s.start)}${s.activity ? html` <span class="small" style="color:${safeColor(s.activity.color)}">· ${s.activity.name}${s.label ? ` (${s.label})` : ''}</span>` : ''}</div>
                 <div class="bar ${s.booked / s.capacity >= .8 ? 'high' : ''}" style="margin-top:6px"><span style="width:${Math.round((s.booked / s.capacity) * 100)}%"></span></div></div>
               <span class="badge ${s.full ? 'full' : ''}">${s.booked}/${s.capacity}</span>${icon('right', 'class="chev"')}</a>`)}</div></div>`
     : emptyState('📅', 'Aucune séance cette semaine.', html`<a class="btn" href="#/admin/seance/nouvelle">Créer des séances</a>`)}
@@ -76,17 +77,18 @@ function memberItem(m, extra = '') {
 }
 
 // ══════════ Calendrier des séances ══════════
-const acal = { mode: 'week', day: null };
+const acal = { mode: 'week', day: null, act: savedActivity('adminAct') };
 export async function slots(root) {
   if (!acal.day) acal.day = today();
-  let list = [];
+  let list = []; let all = [];
   async function load() {
     const monday = mondayOf(acal.day);
-    ({ slots: list } = await api(`/slots?from=${monday}&to=${addDays(monday, 6)}`));
+    ({ slots: all } = await api(`/slots?from=${monday}&to=${addDays(monday, 6)}`));
     render();
   }
   function render() {
     const monday = mondayOf(acal.day);
+    list = filterByActivity(all, acal.act);
     const daySlots = list.filter((s) => s.date === acal.day);
     mount(root, html`
       <div class="page-head"><h1>Séances</h1></div>
@@ -95,6 +97,7 @@ export async function slots(root) {
           <button data-mode="week" aria-pressed="${acal.mode === 'week'}">Semaine</button>
           <button data-mode="day" aria-pressed="${acal.mode === 'day'}">Jour</button>
         </div>
+        ${activityFilter(acal.act)}
         ${weekNav(monday)}
         ${acal.mode === 'day' ? dayStrip(monday, acal.day, list) : ''}
       </div>
@@ -102,11 +105,13 @@ export async function slots(root) {
     ? html`<h2 style="margin:4px 4px 10px">${fmtDay(acal.day)}</h2>${daySlots.length ? daySlots.map((s) => adminSlotCard(s)) : emptyState('🏝️', 'Aucune séance ce jour-là.', html`<a class="btn" href="#/admin/seance/nouvelle?date=${acal.day}">Créer une séance ce jour</a>`)}`
     : dayGroups(monday, list, (s) => adminSlotCard(s))}
       <a class="btn fab" href="#/admin/seance/nouvelle${acal.mode === 'day' ? `?date=${acal.day}` : ''}" aria-label="Nouvelle séance">${icon('plus')}</a>`);
+    revealActiveChip(root);
   }
   root.addEventListener('click', async (e) => {
     const t = e.target.closest('button');
     if (!t) return;
-    if (t.dataset.mode) { acal.mode = t.dataset.mode; render(); }
+    if (t.dataset.act !== undefined) { acal.act = t.dataset.act; saveActivity('adminAct', acal.act); render(); }
+    else if (t.dataset.mode) { acal.mode = t.dataset.mode; render(); }
     else if (t.dataset.week) { acal.day = addDays(mondayOf(acal.day), 7 * Number(t.dataset.week)); await load(); }
     else if (t.dataset.today !== undefined) { acal.day = today(); await load(); }
     else if (t.dataset.day) { acal.day = t.dataset.day; render(); }
@@ -137,7 +142,7 @@ export async function slotForm(root, id) {
 
       <div id="template" class="form hidden">
         <div class="banner info" style="margin:0"><span class="ico">🗓️</span><div><strong>Planning habituel du club</strong>
-          ${tpl.length ? html`<ul style="margin:6px 0 0;padding-left:18px">${tpl.map((t) => html`<li>${WEEKDAYS_LONG[t.weekday]} ${fmtH(t.start)} – ${fmtH(t.end)} · ${t.capacity} places</li>`)}</ul>` : 'Aucun créneau défini.'}
+          ${tpl.length ? html`<ul style="margin:6px 0 0;padding-left:18px">${tpl.map((t) => html`<li style="margin-bottom:4px"><strong>${actName(t.activityId) || 'Séance'}</strong>${t.label ? ` (${t.label})` : ''}<br><span class="small">${WEEKDAYS_LONG[t.weekday]} ${fmtH(t.start)} – ${fmtH(t.end)} · ${t.capacity} places</span></li>`)}</ul>` : 'Aucun créneau défini.'}
           <a class="small" href="#/admin/reglages">Modifier le planning habituel ›</a></div></div>
         <div class="form-grid two">
           <div class="field"><label for="tfrom">Du</label><input id="tfrom" name="tfrom" type="date" value="${d0}"></div>
@@ -158,6 +163,12 @@ export async function slotForm(root, id) {
         <p class="small muted" id="count"></p>
       </div>
 
+      <div class="form-grid two slot-fields">
+        <div class="field"><label for="activityId">Activité</label>
+          <select id="activityId" name="activityId"><option value="">— Non précisée —</option>
+            ${(state.config.activities || []).map((a) => html`<option value="${a.id}" ${v.activity?.id === a.id ? 'selected' : ''}>${a.name}</option>`)}</select></div>
+        <div class="field"><label for="label">Groupe (optionnel)</label><input id="label" name="label" maxlength="60" value="${v.label || ''}" placeholder="Ex. : 1 · Débutant"></div>
+      </div>
       <div class="form-grid two slot-fields">
         <div class="field"><label for="start">Début</label><input id="start" name="start" type="time" value="${v.start}" step="300" required></div>
         <div class="field"><label for="end">Fin</label><input id="end" name="end" type="time" value="${v.end}" step="300" required></div>
@@ -273,8 +284,8 @@ export async function slotDetail(root, id) {
 
   mount(root, html`
     <div class="page-head"><div><a class="small" href="#/admin/seances">‹ Séances</a><h1>${fmtDay(s.date)}</h1></div></div>
-    <div class="card" style="border-left:6px solid ${safeColor(s.level?.color)}">
-      <div class="slot-head"><div class="slot-time">${fmtH(s.start)} <small>– ${fmtH(s.end)}</small></div>${levelBadge(s.level)}</div>
+    <div class="card" style="border-left:6px solid ${slotColor(s)}">
+      <div class="slot-head"><div>${activityTitle(s)}<div class="slot-time">${fmtH(s.start)} <small>– ${fmtH(s.end)}</small></div></div>${levelBadge(s.level)}</div>
       <dl class="kv" style="margin:12px 0">
         <dt>Lieu</dt><dd>${s.location || state.config.defaultLocation}</dd>
         ${s.notes ? html`<dt>Remarque</dt><dd>${s.notes}</dd>` : ''}
@@ -468,7 +479,7 @@ export async function memberDetail(root, id) {
           <button class="btn secondary block" type="submit">Mettre à jour le niveau</button></form>
         <div class="card"><h2>Séances à venir (${upcoming.length})</h2>
           ${upcoming.length ? html`<div class="list">${upcoming.map((s) => html`<a class="item" href="#/admin/seance/${s.id}" style="box-shadow:none;border:1px solid var(--line)">
-            <div class="grow"><div class="name">${fmtDay(s.date, { weekday: 'short', day: 'numeric', month: 'short' })} · ${fmtH(s.start)}</div></div>${levelBadge(s.level)}</a>`)}</div>` : html`<p class="muted">Aucune.</p>`}</div>
+            <div class="grow"><div class="name">${fmtDay(s.date, { weekday: 'short', day: 'numeric', month: 'short' })} · ${fmtH(s.start)}</div>${s.activity ? html`<div class="sub">${s.activity.name}${s.label ? ` · ${s.label}` : ''}</div>` : ''}</div>${levelBadge(s.level)}</a>`)}</div>` : html`<p class="muted">Aucune.</p>`}</div>
         <div class="card"><h2>Annulations tardives (${late.length})</h2>
           ${late.length ? html`<div class="list">${late.map((l) => html`<div class="small"><strong>${l.slot_label}</strong><br><span class="muted">Annulée ${l.hours_before.toFixed(1).replace('.', ',')} h avant · ${fmtDateTime(l.cancelled_at)}</span></div>`)}</div>` : html`<p class="muted">Aucune 👍</p>`}</div>
         <button class="btn danger-outline block" id="del">${icon('trash')} Supprimer ce membre</button>
@@ -586,6 +597,61 @@ export async function levels(root) {
   });
 }
 
+export async function activities(root) {
+  const render = () => mount(root, html`
+    <div class="page-head"><div><a class="small" href="#/admin/plus">‹ Plus</a><h1>Activités de l'école</h1></div></div>
+    <p class="muted">Chaque séance appartient à une activité (Multimono, Laser, Opti, Planche à voile…). Sa couleur repère les séances dans le calendrier, et les membres peuvent filtrer par activité. L'ordre est celui des filtres.</p>
+    <div class="list" id="list">${state.config.activities.map((l, i, arr) => html`
+      <form class="card level-row" data-id="${l.id}" style="margin:0">
+        <input type="color" name="color" value="${safeColor(l.color)}" aria-label="Couleur">
+        <input name="name" value="${l.name}" aria-label="Nom de l'activité" maxlength="60" required>
+        <div class="level-actions">
+          <button type="button" class="round-btn" data-move="-1" ${i === 0 ? 'disabled' : ''} aria-label="Monter">▲</button>
+          <button type="button" class="round-btn" data-move="1" ${i === arr.length - 1 ? 'disabled' : ''} aria-label="Descendre">▼</button>
+          <button type="submit" class="btn sm">Enregistrer</button>
+          <button type="button" class="btn sm danger-outline" data-del>${icon('trash')}</button>
+        </div>
+      </form>`)}</div>
+    <form class="card form" id="add" style="margin-top:16px"><h2>Ajouter une activité</h2>
+      <div class="swatch-row"><input type="color" name="color" value="#8b5cf6" aria-label="Couleur"><input name="name" placeholder="Nom de l'activité (ex. : Catamaran)" maxlength="60" required></div>
+      <button class="btn block" type="submit">${icon('plus')} Ajouter</button></form>`);
+
+  render();
+  root.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const body = formData(f);
+    try {
+      if (f.id === 'add') await api('/admin/activities', { method: 'POST', body });
+      else await api(`/admin/activities/${f.dataset.id}`, { method: 'PUT', body });
+      await reloadConfig(); render(); toast('Activités enregistrées ✅', 'ok');
+    } catch (err) { toast(err.message, 'bad'); }
+  });
+  root.addEventListener('click', async (e) => {
+    const b = e.target.closest('button');
+    const row = b?.closest('[data-id]');
+    if (!b || !row) return;
+    const id = Number(row.dataset.id);
+    if (b.dataset.move) {
+      const ids = state.config.activities.map((l) => l.id);
+      const i = ids.indexOf(id); const j = i + Number(b.dataset.move);
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+      await api('/admin/activities/order', { method: 'PUT', body: { ids } });
+      await reloadConfig(); render();
+    } else if (b.dataset.del !== undefined) {
+      const usage = await api(`/admin/activities/${id}/usage`);
+      const name = state.config.activities.find((l) => l.id === id)?.name;
+      const ok = await modal({ title: `Supprimer « ${name} » ?`, icon: '🗑️', tone: 'danger',
+        body: usage.slots ? `${usage.slots} séance(s) à venir utilisent cette activité : elles passeront en « activité non précisée ». Pensez aussi à retirer cette activité du planning habituel (Réglages).` : 'Aucune séance à venir n\'utilise cette activité.',
+        actions: [{ label: 'Garder', value: false, cls: 'secondary' }, { label: 'Supprimer', value: true, cls: 'danger' }] });
+      if (!ok) return;
+      await api(`/admin/activities/${id}`, { method: 'DELETE' });
+      await reloadConfig(); render(); toast('Activité supprimée.', 'ok');
+    }
+  });
+}
+
+
 // ══════════ Réglages ══════════
 export async function settings(root) {
   const s = await api('/admin/settings');
@@ -600,7 +666,7 @@ export async function settings(root) {
         <label class="check"><input type="checkbox" name="enforce_level" ${s.enforce_level === '1' ? 'checked' : ''}>
           <span><strong>Bloquer les réservations sous le niveau requis</strong><br><span class="small muted">Un participant ne pourra réserver que les séances de son niveau ou d'un niveau inférieur (selon l'ordre des niveaux).</span></span></label>
         <div class="field"><span class="label">Planning habituel</span>
-          <span class="hint">Jour, début, fin, nombre de places. Créneaux types de la semaine, créés en un clic depuis « Nouvelle séance › Planning habituel ».</span>
+          <span class="hint">Activité, groupe, jour, début, fin, nombre de places. Créneaux types de la semaine, créés en un clic depuis « Nouvelle séance › Planning habituel ».</span>
           <div class="list" id="tpl"></div>
           <button type="button" class="btn ghost sm" id="tpl-add" style="justify-self:start">${icon('plus')} Ajouter un créneau type</button></div>
         <div class="field"><label for="rules_text">Règlement du club</label><textarea id="rules_text" name="rules_text" rows="10" required>${s.rules_text}</textarea></div>
@@ -630,6 +696,9 @@ export async function settings(root) {
   const tplBox = $('#tpl', root);
   const tplRow = (t = { weekday: 5, start: '12:00', end: '14:30', capacity: 6 }) => html`
     <div class="tpl-row">
+      <select data-k="activityId" aria-label="Activité" class="tpl-act"><option value="">— Activité —</option>
+        ${(state.config.activities || []).map((a) => html`<option value="${a.id}" ${a.id === t.activityId ? 'selected' : ''}>${a.name}</option>`)}</select>
+      <input data-k="label" class="tpl-label" value="${t.label || ''}" placeholder="Groupe (optionnel)" aria-label="Groupe" maxlength="60">
       <select data-k="weekday" aria-label="Jour">${WEEKDAYS_LONG.map((w, i) => html`<option value="${i}" ${i === t.weekday ? 'selected' : ''}>${w}</option>`)}</select>
       <input data-k="start" type="time" value="${t.start}" aria-label="Début">
       <input data-k="end" type="time" value="${t.end}" aria-label="Fin">
@@ -640,6 +709,7 @@ export async function settings(root) {
   $('#tpl-add', root).addEventListener('click', () => tplBox.insertAdjacentHTML('beforeend', String(tplRow())));
   tplBox.addEventListener('click', (e) => e.target.closest('[data-tpl-del]')?.closest('.tpl-row').remove());
   const readTpl = () => $$('.tpl-row', tplBox).map((r) => ({
+    activityId: $('[data-k=activityId]', r).value ? Number($('[data-k=activityId]', r).value) : null, label: $('[data-k=label]', r).value.trim() || null,
     weekday: Number($('[data-k=weekday]', r).value), start: $('[data-k=start]', r).value,
     end: $('[data-k=end]', r).value, capacity: Number($('[data-k=capacity]', r).value),
   }));
@@ -654,6 +724,7 @@ export async function more(root) {
   const entries = [
     ['#/notifications', '🔔', 'Notifications', state.unread ? `${state.unread} non lue(s)` : 'Alertes et annulations'],
     ['#/admin/annulations', '⚠️', 'Annulations tardives', 'Historique complet'],
+    ['#/admin/activites', '⛵', 'Activités de l\'école', 'Multimono, Laser, Opti, PAV…'],
     ['#/admin/niveaux', '🎨', 'Niveaux de navigation', 'Noms, couleurs et ordre'],
     ['#/admin/reglages', '⚙️', 'Réglages', 'Club, règlement, mot de passe'],
   ];

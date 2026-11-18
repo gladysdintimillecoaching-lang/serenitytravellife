@@ -54,6 +54,14 @@ function password(v) {
 
 // ───────────── Sérialisation ─────────────
 const levelsAll = () => db.prepare('SELECT * FROM levels ORDER BY sort_order, id').all();
+const activitiesAll = () => db.prepare('SELECT * FROM activities ORDER BY sort_order, id').all();
+const activityStmt = db.prepare('SELECT id, name, color FROM activities WHERE id = ?');
+function activityId(v) {
+  if (v === '' || v == null) return null;
+  const id = Number(v);
+  if (!activityStmt.get(id)) throw new AppError(400, 'Activité inconnue.');
+  return id;
+}
 
 function publicUser(u) {
   if (!u) return null;
@@ -108,6 +116,7 @@ function serializeSlot(s) {
     capacity: s.capacity, booked: s.booked, remaining: Math.max(0, s.capacity - s.booked), full: s.booked >= s.capacity,
     level: s.level_id ? { id: s.level_id, name: s.level_name, color: s.level_color } : null,
     location: s.location, notes: s.notes, seriesId: s.series_id,
+    activity: s.activity_id ? activityStmt.get(s.activity_id) || null : null, label: s.label || null,
     myBookingId: s.my_booking_id || null, past: new Date(s.starts_at) <= new Date(),
   };
 }
@@ -117,7 +126,7 @@ router.get('/public/config', (_req, res) => {
   const s = getSettings();
   res.json({
     clubName: s.club_name, rules: s.rules_text, licenseRenewUrl: s.license_renew_url, defaultLocation: s.default_location,
-    enforceLevel: s.enforce_level === '1', levels: levelsAll(), rewards: REWARDS, today: todayLocal(),
+    enforceLevel: s.enforce_level === '1', levels: levelsAll(), activities: activitiesAll(), rewards: REWARDS, today: todayLocal(),
     cancelLimitHours: config.cancelLimitHours,
   });
 });
@@ -356,6 +365,7 @@ function readSlotInput(b) {
   if (end <= start) throw new AppError(400, 'L\'heure de fin doit être après l\'heure de début.');
   return {
     start, end, capacity: int(b.capacity, 'Nombre de places', 1, 500), levelId: levelId(b.levelId),
+    activityId: activityId(b.activityId), label: str(b.label, 'Groupe', { required: false, max: 60 }),
     location: str(b.location, 'Lieu', { required: false, max: 160 }), notes: str(b.notes, 'Remarques', { required: false, max: 500 }),
   };
 }
@@ -378,8 +388,8 @@ admin.post('/slots', wrap((req, res) => {
   const created = db.transaction(() => {
     const seriesId = b.recurring
       ? Number(db.prepare('INSERT INTO series (description) VALUES (?)').run(`${b.weekdays.join(',')} ${s.start}-${s.end}`).lastInsertRowid) : null;
-    const ins = db.prepare('INSERT INTO slots (starts_at, ends_at, capacity, level_id, location, notes, series_id) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    return dates.map((d) => Number(ins.run(localToUtc(d, s.start), localToUtc(d, s.end), s.capacity, s.levelId, s.location, s.notes, seriesId).lastInsertRowid));
+    const ins = db.prepare('INSERT INTO slots (starts_at, ends_at, capacity, level_id, activity_id, label, location, notes, series_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    return dates.map((d) => Number(ins.run(localToUtc(d, s.start), localToUtc(d, s.end), s.capacity, s.levelId, s.activityId, s.label, s.location, s.notes, seriesId).lastInsertRowid));
   })();
   res.status(201).json({ created: created.length });
 }));
@@ -406,7 +416,7 @@ admin.put('/slots/:id', wrap((req, res) => {
   if (!before) throw new AppError(404, 'Séance introuvable.');
   const s = readSlotInput(req.body || {});
   const d = date(req.body.date, 'Date');
-  const after = { ...before, starts_at: localToUtc(d, s.start), ends_at: localToUtc(d, s.end), capacity: s.capacity, level_id: s.levelId, location: s.location, notes: s.notes };
+  const after = { ...before, starts_at: localToUtc(d, s.start), ends_at: localToUtc(d, s.end), capacity: s.capacity, level_id: s.levelId, activity_id: s.activityId, label: s.label, location: s.location, notes: s.notes };
   const booked = activeBookers(before.id);
   const taken = booked.length + db.prepare('SELECT COALESCE(SUM(places), 0) n FROM slot_guests WHERE slot_id = ?').get(before.id).n;
   if (s.capacity < taken) throw new AppError(400, `Impossible : ${taken} places sont déjà prises. Le nombre de places ne peut pas être inférieur.`);
@@ -416,12 +426,14 @@ admin.put('/slots/:id', wrap((req, res) => {
     changes.push(utcToLocal(before.starts_at).date !== d ? `nouvelle date : ${fmtDate(after.starts_at)} ${fmtTime(after.starts_at)}` : `nouvel horaire : ${fmtTime(after.starts_at)} – ${fmtTime(after.ends_at)}`);
   }
   if (before.level_id !== after.level_id) changes.push(`niveau requis : ${after.level_id ? db.prepare('SELECT name FROM levels WHERE id = ?').get(after.level_id).name : 'tous niveaux'}`);
+  if (before.activity_id !== after.activity_id) changes.push(`activité : ${after.activity_id ? activityStmt.get(after.activity_id).name : 'non précisée'}`);
+  if ((before.label || '') !== (after.label || '')) changes.push(`groupe : ${after.label || 'aucun'}`);
   if ((before.location || '') !== (after.location || '')) changes.push(`lieu : ${after.location || getSettings().default_location}`);
   if ((before.notes || '') !== (after.notes || '') && after.notes) changes.push(`remarque : ${after.notes}`);
 
   db.transaction(() => {
-    db.prepare('UPDATE slots SET starts_at = ?, ends_at = ?, capacity = ?, level_id = ?, location = ?, notes = ? WHERE id = ?')
-      .run(after.starts_at, after.ends_at, after.capacity, after.level_id, after.location, after.notes, before.id);
+    db.prepare('UPDATE slots SET starts_at = ?, ends_at = ?, capacity = ?, level_id = ?, activity_id = ?, label = ?, location = ?, notes = ? WHERE id = ?')
+      .run(after.starts_at, after.ends_at, after.capacity, after.level_id, after.activity_id, after.label, after.location, after.notes, before.id);
     if (before.starts_at !== after.starts_at) db.prepare("UPDATE bookings SET reminder_sent_at = NULL WHERE slot_id = ? AND status = 'booked'").run(before.id);
   })();
   if (changes.length) for (const u of booked) notifyLib.slotChanged(u, before, after, changes);
@@ -475,11 +487,12 @@ admin.delete('/bookings/:id', wrap((req, res) => {
 function readTemplate(raw) {
   let rows;
   try { rows = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { rows = null; }
-  if (!Array.isArray(rows) || rows.length > 30) throw new AppError(400, 'Planning habituel invalide.');
+  if (!Array.isArray(rows) || rows.length > 60) throw new AppError(400, 'Planning habituel invalide.');
   return rows.map((r) => {
     const start = time(r.start, 'Début'); const end = time(r.end, 'Fin');
     if (end <= start) throw new AppError(400, 'Dans le planning habituel, chaque fin doit être après le début.');
-    return { weekday: int(r.weekday, 'Jour', 0, 6), start, end, capacity: int(r.capacity, 'Places', 1, 500), levelId: levelId(r.levelId) };
+    return { weekday: int(r.weekday, 'Jour', 0, 6), start, end, capacity: int(r.capacity, 'Places', 1, 500), levelId: levelId(r.levelId),
+      activityId: activityId(r.activityId), label: str(r.label, 'Groupe', { required: false, max: 60 }) };
   });
 }
 
@@ -489,8 +502,9 @@ admin.post('/slots/template', wrap((req, res) => {
   const from = date(req.body?.from, 'Date de début'); const until = date(req.body?.until, 'Date de fin');
   if (until < from) throw new AppError(400, 'La date de fin doit être après la date de début.');
   const location = str(req.body?.location, 'Lieu', { required: false, max: 160 });
-  const exists = db.prepare('SELECT 1 FROM slots WHERE starts_at = ?');
-  const ins = db.prepare('INSERT INTO slots (starts_at, ends_at, capacity, level_id, location, series_id) VALUES (?, ?, ?, ?, ?, ?)');
+  // Doublon = même horaire ET même activité (plusieurs activités peuvent avoir lieu en même temps)
+  const exists = db.prepare('SELECT 1 FROM slots WHERE starts_at = ? AND activity_id IS ?');
+  const ins = db.prepare('INSERT INTO slots (starts_at, ends_at, capacity, level_id, activity_id, label, location, series_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
   const result = db.transaction(() => {
     const seriesId = Number(db.prepare('INSERT INTO series (description) VALUES (?)').run('Planning habituel').lastInsertRowid);
     let created = 0; let skipped = 0;
@@ -499,8 +513,8 @@ admin.post('/slots/template', wrap((req, res) => {
       for (const t of tpl.filter((x) => x.weekday === weekdayIndex(d))) {
         const startsAt = localToUtc(d, t.start);
         if (startsAt <= now) continue; // jamais de séance déjà commencée
-        if (exists.get(startsAt)) { skipped++; continue; } // pas de doublon si déjà créée
-        ins.run(startsAt, localToUtc(d, t.end), t.capacity, t.levelId, location, seriesId);
+        if (exists.get(startsAt, t.activityId)) { skipped++; continue; } // pas de doublon si déjà créée
+        ins.run(startsAt, localToUtc(d, t.end), t.capacity, t.levelId, t.activityId, t.label, location, seriesId);
         if (++created > 400) throw new AppError(400, 'Trop de séances d\'un coup (400 max). Réduisez la période.');
       }
     }
@@ -627,6 +641,38 @@ admin.put('/levels/:id', wrap((req, res) => {
 admin.delete('/levels/:id', wrap((req, res) => {
   db.prepare('DELETE FROM levels WHERE id = ?').run(Number(req.params.id));
   res.json({ levels: levelsAll() });
+}));
+
+// Activités de l'école de voile
+function readActivity(b) {
+  const name = str(b?.name, 'Nom de l\'activité', { max: 60 });
+  const color = str(b?.color, 'Couleur');
+  if (!COLOR_RE.test(color)) throw new AppError(400, 'Couleur invalide.');
+  return { name, color };
+}
+admin.post('/activities', wrap((req, res) => {
+  const a = readActivity(req.body);
+  const order = (db.prepare('SELECT MAX(sort_order) m FROM activities').get().m || 0) + 1;
+  db.prepare('INSERT INTO activities (name, color, sort_order) VALUES (?, ?, ?)').run(a.name, a.color, order);
+  res.status(201).json({ activities: activitiesAll() });
+}));
+admin.put('/activities/order', wrap((req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number) : [];
+  const upd = db.prepare('UPDATE activities SET sort_order = ? WHERE id = ?');
+  db.transaction(() => ids.forEach((id, i) => upd.run(i + 1, id)))();
+  res.json({ activities: activitiesAll() });
+}));
+admin.put('/activities/:id', wrap((req, res) => {
+  const a = readActivity(req.body);
+  if (!db.prepare('UPDATE activities SET name = ?, color = ? WHERE id = ?').run(a.name, a.color, Number(req.params.id)).changes) throw new AppError(404, 'Activité introuvable.');
+  res.json({ activities: activitiesAll() });
+}));
+admin.get('/activities/:id/usage', wrap((req, res) => {
+  res.json({ slots: db.prepare('SELECT COUNT(*) n FROM slots WHERE activity_id = ? AND starts_at > ?').get(Number(req.params.id), new Date().toISOString()).n });
+}));
+admin.delete('/activities/:id', wrap((req, res) => {
+  db.prepare('DELETE FROM activities WHERE id = ?').run(Number(req.params.id));
+  res.json({ activities: activitiesAll() });
 }));
 
 admin.get('/levels/:id/usage', wrap((req, res) => {

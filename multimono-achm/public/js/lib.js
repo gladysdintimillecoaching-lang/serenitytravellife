@@ -75,6 +75,11 @@ export const rewardBg = (r) => {
 };
 export const rewardBadge = (r, big = false) => (r
   ? html`<span class="badge reward ${big ? 'big' : ''}" style="background:${rewardBg(r)};color:${okHex(r.ink) ? r.ink : '#0B3954'}">🏅 ${r.name}</span>` : '');
+/** Titre d'activité d'une séance (« Laser week-end · Junior ») */
+export const activityTitle = (slot) => (slot.activity || slot.label
+  ? html`<div class="act-title" style="color:${okHex(slot.activity?.color) ? slot.activity.color : '#0e7490'}">${slot.activity?.name || 'Séance'}${slot.label ? html` <span class="act-label">${slot.label}</span>` : ''}</div>` : '');
+/** Couleur de la séance : celle de l'activité, sinon celle du niveau */
+export const slotColor = (slot) => (okHex(slot.activity?.color) ? slot.activity.color : okHex(slot.level?.color) ? slot.level.color : '#22b8cf');
 export const safeColor = (c) => (/^#[0-9a-f]{6}$/i.test(c || '') ? c : '#22b8cf');
 
 export function licenseBadge(lic) {

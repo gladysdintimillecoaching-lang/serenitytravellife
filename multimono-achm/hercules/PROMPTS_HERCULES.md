@@ -72,15 +72,27 @@ Ajoute la gestion des séances et la réservation.
 
 SÉANCES (créneaux)
 - Une séance a : date et heure de début, heure de fin, nombre de places, niveau requis (ou « Tous niveaux »), lieu (vide = lieu par défaut), remarque optionnelle, et éventuellement une série (récurrence).
-- PLANNING HABITUEL DU CLUB (repris de la feuille d'inscription utilisée jusqu'ici), modifiable dans Réglages sous forme de lignes jour / début / fin / places :
-  • Samedi 12h00 – 14h30, 6 places
-  • Samedi 15h00 – 17h30, 6 places
-  • Dimanche 14h00 – 16h30, 6 places
+- ACTIVITÉS DE L'ÉCOLE DE VOILE : chaque séance appartient à une activité (table « activités » : nom, couleur, ordre), plus un « groupe » optionnel (texte court, ex. « 1 · Débutant »). Eric gère les activités dans « Plus › Activités de l'école » (créer, renommer, couleur au sélecteur, ordre ▲▼, supprimer : les séances passent en « activité non précisée »). Activités de départ et couleurs :
+  École de sport #0EA5E9 · Multimono en semaine #0E7490 · Laser en semaine #E11D48 · Opti Loisir #F59E0B · Multimono week-end #14B8A6 · Planche à voile (PAV) #8B5CF6 · Laser week-end #DC2626
+- Sur chaque carte de séance : le nom de l'activité en couleur au-dessus de l'horaire (+ le groupe en pastille), liseré gauche de la couleur de l'activité. L'activité apparaît aussi dans « Mes réservations », la fiche séance, les emails (ligne « Activité ») et l'objet du rappel (« Rappel : Laser week-end demain à 14h00 »).
+- Calendrier (participants ET Eric) : rangée de filtres défilante « Toutes » + une pastille par activité (couleur de l'activité), choix mémorisé sur l'appareil.
+- PLANNING HABITUEL DE L'ÉCOLE, modifiable dans Réglages sous forme de lignes activité / groupe / jour / début / fin / places (6 places par défaut) :
+  • Mercredi 14h00 – 16h30 : École de sport
+  • Jeudi 9h00 – 12h00 : Multimono en semaine
+  • Vendredi 8h30 – 11h30 : Laser en semaine
+  • Vendredi 14h00 – 16h30 : Opti Loisir
+  • Samedi 9h00 – 11h30, 12h00 – 14h30 et 15h00 – 17h30 : Multimono week-end
+  • Samedi 9h30 – 12h00 : Planche à voile (PAV)
+  • Samedi 14h00 – 17h00 : Laser week-end
+  • Dimanche 9h00 – 11h30 : Planche à voile (PAV), groupe « 1 · Débutant »
+  • Dimanche 12h00 – 14h30 : Planche à voile (PAV), groupe « 2 · Junior »
+  • Dimanche 15h00 – 17h30 : Planche à voile (PAV), groupe « 3 · Confirmé »
+  • Dimanche 14h00 – 17h00 : Laser week-end
 - Page « Nouvelle séance » avec 3 modes :
   1. « Unique » : une date.
   2. « Récurrente » : jours de pratique (puces Lun…Dim), du … au …, afficher « N séances seront créées ».
-  3. « Planning habituel » : du … au … ; crée toutes les séances du planning habituel sur la période, sans jamais créer de doublon si une séance existe déjà au même horaire. Afficher « N séances créées (M déjà existantes) ».
-  Champs communs : début, fin (après le début), nombre de places (6 par défaut), niveau requis, lieu, remarque. Maximum 400 séances par création.
+  3. « Planning habituel » : du … au … ; crée toutes les séances du planning habituel sur la période (jamais dans le passé), sans jamais créer de doublon si une séance de la même activité existe déjà au même horaire. Afficher « N séances créées (M déjà existantes) ».
+  Champs communs : activité, groupe (optionnel), début, fin (après le début), nombre de places (6 par défaut), niveau requis, lieu, remarque. Maximum 400 séances par création.
 
 CALENDRIER DU PARTICIPANT (onglet « Calendrier »)
 - Boutons « Semaine » / « Jour », navigation semaine précédente / suivante, bouton « Revenir à aujourd'hui », mention « Heure de Mayotte ».

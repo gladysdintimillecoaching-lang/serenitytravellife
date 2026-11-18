@@ -25,6 +25,7 @@ const routes = [
   [/^#\/admin\/membre\/(\d+)$/, admin.memberDetail, 'admin'],
   [/^#\/admin\/annulations$/, admin.lateCancellations, 'admin'],
   [/^#\/admin\/niveaux$/, admin.levels, 'admin'],
+  [/^#\/admin\/activites$/, admin.activities, 'admin'],
   [/^#\/admin\/reglages$/, admin.settings, 'admin'],
   [/^#\/admin\/plus$/, admin.more, 'admin'],
 ];

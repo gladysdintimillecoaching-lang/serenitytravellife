@@ -378,9 +378,9 @@ table.table { width: 100%; border-collapse: collapse; font-size: .92rem; }
 .menu-list .item { min-height: 64px; }
 .menu-list .ico { width: 44px; height: 44px; border-radius: 12px; background: var(--mist); display: grid; place-items: center; font-size: 1.3rem; flex: none; }
 .tpl-row { display: grid; grid-template-columns: 1fr 1fr 72px 48px; gap: 8px; align-items: center; padding: 10px; border-radius: var(--radius-sm); background: var(--foam); border: 1px solid var(--line); }
-.tpl-row select { grid-column: 1 / -1; }
+.tpl-row select, .tpl-row .tpl-label { grid-column: 1 / -1; }
 .tpl-row input { min-width: 0; padding: 10px 8px; }
-@media (min-width: 640px) { .tpl-row { grid-template-columns: 1.3fr 1fr 1fr 80px 48px; } .tpl-row select { grid-column: auto; } }
+@media (min-width: 640px) { .tpl-row { grid-template-columns: 1fr 1fr 1fr 80px 48px; } .tpl-row .tpl-act { grid-column: 1 / 3; } .tpl-row .tpl-label { grid-column: 3 / -1; } .tpl-row select[data-k=weekday] { grid-column: auto; } }
 .swatch-row { display: flex; gap: 10px; align-items: center; }
 .level-row { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; }
 .level-actions { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
@@ -434,3 +434,10 @@ table.table { width: 100%; border-collapse: collapse; font-size: .92rem; }
 .reward-opt:has(input:checked) { border-color: var(--ocean); background: #ecfeff; }
 .reward-opt .sw { width: 34px; height: 18px; border-radius: 6px; border: 1px solid rgba(11,57,84,.25); flex: none; }
 @media (min-width: 640px) { .reward-pick { grid-template-columns: repeat(4, 1fr); } }
+
+/* Activités de l'école de voile */
+.act-title { font-weight: 800; font-size: .95rem; letter-spacing: .01em; }
+.act-label { display: inline-block; font-size: .78rem; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: var(--mist); color: var(--abyss); margin-left: 4px; }
+.act-filter { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px; scrollbar-width: thin; }
+.act-filter .chip { flex: none; white-space: nowrap; min-height: 40px; font-size: .88rem; border-color: var(--chip, var(--line)); }
+.act-filter .chip[aria-pressed="true"] { background: var(--chip, var(--ocean)); border-color: var(--chip, var(--ocean)); color: #fff; }

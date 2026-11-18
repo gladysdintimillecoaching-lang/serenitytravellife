@@ -1,6 +1,6 @@
 import { api, state, html, mount, $, $$, icon, modal, toast, busy, formData, showError, levelBadge, licenseBadge, rewardBadge, rewardBg,
-  today, addDays, mondayOf, fmtDay, fmtShort, fmtFull, fmtH, fmtWhen, hoursUntil, go } from '../lib.js';
-import { slotCard, bookFlow, friendFlow, cancelFlow, licenseBanner, emptyState, placesBar, refreshUnread } from './shared.js';
+  today, addDays, mondayOf, fmtDay, fmtShort, fmtFull, fmtH, fmtWhen, hoursUntil, go, activityTitle, slotColor } from '../lib.js';
+import { slotCard, bookFlow, friendFlow, cancelFlow, licenseBanner, emptyState, placesBar, refreshUnread, activityFilter, filterByActivity, savedActivity, saveActivity, revealActiveChip } from './shared.js';
 import { showRules } from './auth.js';
 
 /** Rafraîchit une vue tant qu'elle est affichée */
@@ -12,7 +12,7 @@ export function autoRefresh(root, fn, ms = 30000) {
 }
 
 // ══════════ Calendrier ══════════
-const cal = { mode: localStorage.getItem('calMode') || 'week', day: null };
+const cal = { mode: localStorage.getItem('calMode') || 'week', day: null, act: savedActivity('calAct') };
 
 export function weekNav(monday) {
   const sunday = addDays(monday, 6);
@@ -52,14 +52,16 @@ export async function calendar(root) {
   if (!cal.day) cal.day = today();
   let slots = [];
 
+  let allSlots = [];
   async function load() {
     const monday = mondayOf(cal.day);
-    ({ slots } = await api(`/slots?from=${monday}&to=${addDays(monday, 6)}`));
+    ({ slots: allSlots } = await api(`/slots?from=${monday}&to=${addDays(monday, 6)}`));
     render();
   }
 
   function render() {
     const monday = mondayOf(cal.day);
+    slots = filterByActivity(allSlots, cal.act);
     const daySlots = slots.filter((s) => s.date === cal.day);
     mount(root, html`
       <div class="page-head"><h1>Calendrier des séances</h1></div>
@@ -72,19 +74,22 @@ export async function calendar(root) {
           </div>
           <span class="small muted">Heure de Mayotte</span>
         </div>
+        ${activityFilter(cal.act)}
         ${weekNav(monday)}
         ${cal.mode === 'day' ? dayStrip(monday, cal.day, slots) : ''}
       </div>
       ${cal.mode === 'day'
     ? html`<h2 style="margin:4px 4px 10px">${fmtDay(cal.day)}</h2>${daySlots.length ? daySlots.map((s) => slotCard(s)) : emptyState('🏝️', 'Aucune séance ce jour-là.')}`
-    : slots.length ? dayGroups(monday, slots, (s) => slotCard(s)) : emptyState('🏝️', 'Aucune séance programmée cette semaine.', html`<button class="btn secondary" data-week="1">Voir la semaine suivante</button>`)}
+    : slots.length ? dayGroups(monday, slots, (s) => slotCard(s)) : emptyState('🏝️', cal.act ? 'Aucune séance de cette activité cette semaine.' : 'Aucune séance programmée cette semaine.', html`<button class="btn secondary" data-week="1">Voir la semaine suivante</button>`)}
     `);
+    revealActiveChip(root);
   }
 
   root.addEventListener('click', async (e) => {
     const t = e.target.closest('button, a');
     if (!t) return;
-    if (t.dataset.mode) { cal.mode = t.dataset.mode; localStorage.setItem('calMode', cal.mode); render(); }
+    if (t.dataset.act !== undefined) { cal.act = t.dataset.act; saveActivity('calAct', cal.act); render(); }
+    else if (t.dataset.mode) { cal.mode = t.dataset.mode; localStorage.setItem('calMode', cal.mode); render(); }
     else if (t.dataset.week) { cal.day = addDays(mondayOf(cal.day), 7 * Number(t.dataset.week)); if (cal.day < today() && mondayOf(today()) === mondayOf(cal.day)) cal.day = today(); await load(); }
     else if (t.dataset.today !== undefined) { cal.day = today(); await load(); }
     else if (t.dataset.day) { cal.day = t.dataset.day; render(); }
@@ -108,9 +113,10 @@ export async function bookings(root) {
       ${licenseBanner(state.user, { compact: true })}
       ${upcoming.length ? html`<div class="list">${upcoming.map(({ bookingId, presenceConfirmed, slot }) => {
     const h = hoursUntil(slot.startsAt);
-    return html`<article class="slot mine" style="--slot-color:${slot.level?.color || '#22b8cf'}">
+    return html`<article class="slot mine" style="--slot-color:${slotColor(slot)}">
           <div class="slot-head">
             <div><div class="small muted" style="font-weight:700">${fmtDay(slot.date)}</div>
+              ${activityTitle(slot)}
               <div class="slot-time">${fmtH(slot.start)} <small>– ${fmtH(slot.end)}</small></div></div>
             ${levelBadge(slot.level)}
           </div>
@@ -126,8 +132,8 @@ export async function bookings(root) {
   })}</div>`
     : emptyState('⛵', 'Aucune séance à venir.', html`<a class="btn" href="#/calendrier">Réserver une séance</a>`)}
       ${friends.length ? html`<h2 style="margin:22px 4px 10px">🤝 Amis que j'ai inscrits</h2><div class="list">${friends.map(({ bookingId, friendName, slot }) => html`
-        <article class="slot" style="--slot-color:${slot.level?.color || '#22b8cf'}">
-          <div class="slot-head"><div><div class="small muted" style="font-weight:700">${fmtDay(slot.date)}</div>
+        <article class="slot" style="--slot-color:${slotColor(slot)}">
+          <div class="slot-head"><div><div class="small muted" style="font-weight:700">${fmtDay(slot.date)}</div>${activityTitle(slot)}
             <div class="slot-time">${fmtH(slot.start)} <small>– ${fmtH(slot.end)}</small></div></div>${levelBadge(slot.level)}</div>
           <div class="row between"><span>Pour <strong>${friendName}</strong></span>
             <button class="btn sm danger-outline" data-cancel="${bookingId}" data-start="${slot.startsAt}">Annuler</button></div>

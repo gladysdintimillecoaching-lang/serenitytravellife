@@ -8,6 +8,8 @@ const { background } = require('./rewards');
 
 const insertNotif = db.prepare('INSERT INTO notifications (user_id, type, title, body, data) VALUES (?, ?, ?, ?, ?)');
 const levelStmt = db.prepare('SELECT name FROM levels WHERE id = ?');
+const activityName = (slot) => (slot.activity_id ? db.prepare('SELECT name FROM activities WHERE id = ?').get(slot.activity_id)?.name : null);
+const activityLabel = (slot) => [activityName(slot), slot.label].filter(Boolean).join(' · ') || 'Séance';
 
 /** Notification dans l'app + email (optionnel) */
 function notify(user, { type, title, body, data, email }) {
@@ -18,6 +20,7 @@ function notify(user, { type, title, body, data, email }) {
 function slotDetails(slot) {
   const level = slot.level_id ? levelStmt.get(slot.level_id)?.name : null;
   return [
+    ['Activité', activityLabel(slot)],
     ['Date', fmtDate(slot.starts_at)],
     ['Horaire', `${fmtTime(slot.starts_at)} – ${fmtTime(slot.ends_at)}`],
     ['Niveau', level || 'Tous niveaux'],
@@ -38,7 +41,7 @@ function bookingConfirmed(user, slot, booking, bookedBy = null) {
     data: { slotId: slot.id, bookingId: booking.id },
     email: {
       subject: by ? `${bookedBy.first_name} vous a inscrit(e) — ${short(slot)}` : `Réservation confirmée — ${short(slot)}`,
-      lines: by ? [`Bonjour ${user.first_name},`, `${by} vous a inscrit(e) à une séance de multimono.`, 'Si vous ne pouvez pas venir, annulez depuis l\'application pour libérer la place.']
+      lines: by ? [`Bonjour ${user.first_name},`, `${by} vous a inscrit(e) à une séance (${activityLabel(slot)}).`, 'Si vous ne pouvez pas venir, annulez depuis l\'application pour libérer la place.']
         : [`Bonjour ${user.first_name},`, 'Votre place est bien réservée. À bientôt sur l\'eau !'],
       details: slotDetails(slot),
       buttons: [{ label: 'Voir mes réservations', url: `${config.appUrl}/#/reservations` }],
@@ -58,8 +61,8 @@ function reminder(user, slot, booking) {
     body: `Séance du ${short(slot)}. ${warning}`,
     data: { slotId: slot.id, bookingId: booking.id, actions: ['confirm', 'cancel'] },
     email: {
-      subject: `Rappel : séance de multimono demain à ${fmtTime(slot.starts_at)}`,
-      lines: [`Bonjour ${user.first_name},`, 'Votre séance de multimono commence dans 24 h.'],
+      subject: `Rappel : ${activityLabel(slot)} demain à ${fmtTime(slot.starts_at)}`,
+      lines: [`Bonjour ${user.first_name},`, `Votre séance (${activityLabel(slot)}) commence dans 24 h.`],
       details: slotDetails(slot),
       buttons: [
         { label: 'Je confirme ma présence', url: confirmUrl, color: '#0e7490' },
@@ -142,7 +145,7 @@ function birthday(user) {
       lines: [
         `Bonjour ${user.first_name},`,
         'Toute l\'équipe du club vous souhaite un très joyeux anniversaire ! 🎉',
-        'Que cette nouvelle année vous apporte bon vent, belle mer et de magnifiques sessions de multimono.',
+        'Que cette nouvelle année vous apporte bon vent, belle mer et de magnifiques navigations avec le club.',
         'Au plaisir de vous retrouver très vite sur l\'eau.',
         `Eric et l'équipe ${getSettings().club_name}`,
       ],

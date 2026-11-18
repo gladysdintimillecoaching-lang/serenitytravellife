@@ -1,4 +1,4 @@
-import { api, state, html, raw, icon, modal, toast, levelBadge, safeColor, fmtDay, fmtH, hoursUntil, esc } from '../lib.js';
+import { api, state, html, raw, icon, modal, toast, levelBadge, safeColor, activityTitle, slotColor, fmtDay, fmtH, hoursUntil, esc } from '../lib.js';
 
 export async function refreshUnread() {
   try {
@@ -37,10 +37,11 @@ export function slotCard(slot, { showDate = false } = {}) {
   const friends = (slot.friendBookings || []).filter(() => !slot.past);
 
   return html`
-    <article class="slot ${mine ? 'mine' : ''} ${slot.full ? 'is-full' : ''} ${slot.past ? 'past' : ''}" style="--slot-color:${safeColor(slot.level?.color)}">
+    <article class="slot ${mine ? 'mine' : ''} ${slot.full ? 'is-full' : ''} ${slot.past ? 'past' : ''}" style="--slot-color:${slotColor(slot)}">
       <div class="slot-head">
         <div>
           ${showDate ? html`<div class="small muted" style="font-weight:700">${fmtDay(slot.date)}</div>` : ''}
+          ${activityTitle(slot)}
           <div class="slot-time">${fmtH(slot.start)} <small>– ${fmtH(slot.end)}</small></div>
         </div>
         ${levelBadge(slot.level)}
@@ -74,7 +75,7 @@ export async function friendFlow(slot) {
   let chosen = null;
   const ok = await modal({
     title: 'Inscrire un ami du club', icon: '🤝', left: true,
-    body: html`<p class="small muted">${fmtDay(slot.date)}, ${fmtH(slot.start)} – ${fmtH(slot.end)} · ${slot.remaining} place${slot.remaining > 1 ? 's' : ''} libre${slot.remaining > 1 ? 's' : ''}.
+    body: html`<p class="small muted">${slot.activity ? html`<strong>${slot.activity.name}</strong> · ` : ''}${fmtDay(slot.date)}, ${fmtH(slot.start)} – ${fmtH(slot.end)} · ${slot.remaining} place${slot.remaining > 1 ? 's' : ''} libre${slot.remaining > 1 ? 's' : ''}.
         Votre ami doit être membre du club : il sera prévenu par notification et par email.</p>
       <input type="search" id="fsearch" placeholder="Prénom ou nom (2 lettres minimum)…" aria-label="Rechercher un membre du club" autocomplete="off">
       <div class="list" id="fresults" style="margin-top:10px;max-height:40vh;overflow:auto"></div>`,
@@ -131,7 +132,7 @@ export async function bookFlow(slotId) {
     const { slot } = await api(`/slots/${slotId}/book`, { method: 'POST' });
     modal({
       title: 'Réservation confirmée !', icon: '⛵', tone: 'success',
-      body: html`<p><strong>${fmtDay(slot.date)}</strong><br>${fmtH(slot.start)} – ${fmtH(slot.end)}</p>
+      body: html`<p>${slot.activity ? html`<strong>${slot.activity.name}${slot.label ? ` · ${slot.label}` : ''}</strong><br>` : ''}<strong>${fmtDay(slot.date)}</strong><br>${fmtH(slot.start)} – ${fmtH(slot.end)}</p>
         <p class="small muted">Un email de confirmation vous a été envoyé. Vous recevrez un rappel 24 h avant la séance.</p>`,
       actions: [{ label: 'Parfait !', value: true }],
     });
@@ -194,3 +195,21 @@ export function licenseBanner(user, { compact = false } = {}) {
 
 export const emptyState = (emoji, text, extra = '') => html`<div class="empty"><span class="big">${emoji}</span><p>${text}</p>${extra}</div>`;
 export { raw, esc };
+
+/** Filtre par activité (mémorisé sur l'appareil) */
+export function activityFilter(selected) {
+  const acts = state.config.activities || [];
+  if (acts.length < 2) return '';
+  return html`<div class="act-filter" role="group" aria-label="Filtrer par activité">
+    <button type="button" class="chip" data-act="" aria-pressed="${!selected}">Toutes</button>
+    ${acts.map((a) => html`<button type="button" class="chip" data-act="${a.id}" aria-pressed="${String(a.id) === String(selected)}" style="--chip:${safeColor(a.color)}">${a.name}</button>`)}
+  </div>`;
+}
+export const filterByActivity = (slots, selected) => (selected ? slots.filter((s) => String(s.activity?.id) === String(selected)) : slots);
+export const savedActivity = (key) => { try { return localStorage.getItem(key) || ''; } catch { return ''; } };
+export const saveActivity = (key, v) => { try { localStorage.setItem(key, v); } catch { /* stockage indisponible */ } };
+/** Fait défiler le filtre pour montrer l'activité choisie */
+export function revealActiveChip(root) {
+  const chip = root.querySelector('.act-filter [aria-pressed="true"]');
+  if (chip) chip.parentElement.scrollLeft = chip.offsetLeft - chip.parentElement.offsetLeft - 16;
+}

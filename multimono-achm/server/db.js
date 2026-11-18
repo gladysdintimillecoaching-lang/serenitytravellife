@@ -175,6 +175,44 @@ db.exec(`CREATE TABLE IF NOT EXISTS reward_history (
   awarded_at TEXT NOT NULL
 )`);
 
+// ── Activités de l'école de voile (catégories des séances) ──
+db.exec(`CREATE TABLE IF NOT EXISTS activities (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT '#0e7490',
+  sort_order INTEGER NOT NULL DEFAULT 0
+)`);
+if (!db.prepare('PRAGMA table_info(slots)').all().some((c) => c.name === 'activity_id')) {
+  db.exec('ALTER TABLE slots ADD COLUMN activity_id INTEGER REFERENCES activities(id) ON DELETE SET NULL');
+  db.exec('ALTER TABLE slots ADD COLUMN label TEXT'); // ex. « Débutant », « Junior »
+}
+
+const ACTIVITIES = [
+  ['École de sport', '#0EA5E9'], ['Multimono en semaine', '#0E7490'], ['Laser en semaine', '#E11D48'],
+  ['Opti Loisir', '#F59E0B'], ['Multimono week-end', '#14B8A6'], ['Planche à voile (PAV)', '#8B5CF6'], ['Laser week-end', '#DC2626'],
+];
+
+/** Planning de l'école de voile (0 = lundi … 6 = dimanche) */
+function schoolTemplate() {
+  const id = (name) => db.prepare('SELECT id FROM activities WHERE name = ?').get(name)?.id ?? null;
+  const row = (activity, weekday, start, end, label = null) => ({ activityId: id(activity), label, weekday, start, end, capacity: 6 });
+  return [
+    row('École de sport', 2, '14:00', '16:30'),
+    row('Multimono en semaine', 3, '09:00', '12:00'),
+    row('Laser en semaine', 4, '08:30', '11:30'),
+    row('Opti Loisir', 4, '14:00', '16:30'),
+    row('Multimono week-end', 5, '09:00', '11:30'),
+    row('Multimono week-end', 5, '12:00', '14:30'),
+    row('Multimono week-end', 5, '15:00', '17:30'),
+    row('Planche à voile (PAV)', 5, '09:30', '12:00'),
+    row('Laser week-end', 5, '14:00', '17:00'),
+    row('Planche à voile (PAV)', 6, '09:00', '11:30', '1 · Débutant'),
+    row('Planche à voile (PAV)', 6, '12:00', '14:30', '2 · Junior'),
+    row('Planche à voile (PAV)', 6, '15:00', '17:30', '3 · Confirmé'),
+    row('Laser week-end', 6, '14:00', '17:00'),
+  ];
+}
+
 const DEFAULT_SETTINGS = {
   club_name: 'Multimono ACHM',
   default_location: 'Club de voile ACHM',
@@ -204,6 +242,22 @@ for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) insertSetting.run(k, v);
 if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migration_location_v1'").get()) {
   db.prepare("UPDATE settings SET value = 'Club de voile ACHM' WHERE key = 'default_location' AND value = 'Base nautique ACHM'").run();
   db.prepare("INSERT INTO settings (key, value) VALUES ('migration_location_v1', '1')").run();
+}
+
+// Activités : créées une fois, puis le planning habituel passe au planning complet de l'école
+// (seulement s'il était encore le planning d'origine ; un planning modifié par Eric est conservé)
+if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migration_activities_v1'").get()) {
+  db.transaction(() => {
+    if (db.prepare('SELECT COUNT(*) n FROM activities').get().n === 0) {
+      const ins = db.prepare('INSERT INTO activities (name, color, sort_order) VALUES (?, ?, ?)');
+      ACTIVITIES.forEach(([n, c], i) => ins.run(n, c, i + 1));
+    }
+    const current = db.prepare("SELECT value FROM settings WHERE key = 'weekly_template'").get()?.value;
+    if (current === DEFAULT_SETTINGS.weekly_template) {
+      db.prepare("UPDATE settings SET value = ? WHERE key = 'weekly_template'").run(JSON.stringify(schoolTemplate()));
+    }
+    db.prepare("INSERT INTO settings (key, value) VALUES ('migration_activities_v1', '1')").run();
+  })();
 }
 
 if (db.prepare('SELECT COUNT(*) n FROM levels').get().n === 0) {

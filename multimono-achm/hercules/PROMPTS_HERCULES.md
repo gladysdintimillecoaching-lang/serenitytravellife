@@ -81,8 +81,8 @@ SÉANCES (créneaux)
   École de sport #0EA5E9 · Multimono en semaine #0E7490 · Laser en semaine #E11D48 · Opti Loisir #F59E0B · Multimono week-end #14B8A6 · Planche à voile (PAV) #8B5CF6 · Laser week-end #DC2626
 - Sur chaque carte de séance : le nom de l'activité en couleur au-dessus de l'horaire (+ le groupe en pastille), liseré gauche de la couleur de l'activité. L'activité apparaît aussi dans « Mes réservations », la fiche séance, les emails (ligne « Activité ») et l'objet du rappel (« Rappel : Laser week-end demain à 14h00 »).
 - Calendrier (participants ET Eric) : rangée de filtres défilante « Toutes » + une pastille par activité (couleur de l'activité), choix mémorisé sur l'appareil.
-- Chaque activité a un nombre de places par défaut, modifiable par Eric dans « Activités de l'école » : 6, sauf Planche à voile (PAV) : 4 et Opti Loisir : 12. Choisir une activité dans le formulaire de séance ou dans le planning propose ce nombre.
-- PLANNING HABITUEL DE L'ÉCOLE, modifiable dans Réglages sous forme de lignes activité / groupe / jour / début / fin / places (6 places, 4 pour la PAV, 12 pour l'Opti Loisir) :
+- Chaque activité a un nombre de places par défaut, modifiable par Eric dans « Activités de l'école » : Multimono 6, École de sport 6, Planche à voile (PAV) 4, Laser (semaine et week-end) 4, Opti Loisir 12. Choisir une activité dans le formulaire de séance ou dans le planning propose ce nombre.
+- PLANNING HABITUEL DE L'ÉCOLE, modifiable dans Réglages sous forme de lignes activité / groupe / jour / début / fin / places (6 places ; 4 pour la PAV et le Laser ; 12 pour l'Opti Loisir) :
   • Mercredi 14h00 – 16h30 : École de sport
   • Jeudi 9h00 – 12h00 : Multimono en semaine
   • Vendredi 8h30 – 11h30 : Laser en semaine

@@ -23,7 +23,12 @@ before(async () => {
   await new Promise((r) => server.once('listening', r));
   base = `http://127.0.0.1:${server.address().port}/api`;
 });
-after(() => { server.close(); db.close(); fs.rmSync(tmp, { recursive: true, force: true }); });
+after(async () => {
+  server.close();
+  await new Promise((r) => setTimeout(r, 50)); // laisse finir la file d'emails en arrière-plan
+  db.close();
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
 
 function client() {
   let cookie = '';
@@ -263,4 +268,18 @@ test('inscrits visibles par tous (prénoms) et inscription d\'un ami du club', a
   assert.equal(mine[0].friendName, 'Bob');
   assert.equal((await alice(`/bookings/${mine[0].bookingId}/cancel`, { method: 'POST', body: {} })).body.late, false);
   assert.match((await bob('/notifications')).body.items[0].title, /annulée/);
+});
+
+test('joyeux anniversaire : le jour J, une seule fois par an, 29 février géré', async () => {
+  db.prepare("UPDATE users SET birth_date = '1990-07-14' WHERE email = 'alice@example.com'").run();
+  db.prepare("UPDATE users SET birth_date = '1992-02-29' WHERE email = 'bob@example.com'").run();
+  assert.equal(scheduler.sendBirthdayWishes('2027-07-13'), 0);
+  assert.equal(scheduler.sendBirthdayWishes('2027-07-14'), 1);
+  assert.equal(scheduler.sendBirthdayWishes('2027-07-14'), 0);
+  const mail = db.prepare("SELECT to_addr, subject FROM outbox WHERE subject LIKE 'Joyeux anniversaire%' ORDER BY id DESC").get();
+  assert.equal(mail.to_addr, 'alice@example.com');
+  assert.match(mail.subject, /Joyeux anniversaire Léa/);
+  assert.equal(scheduler.sendBirthdayWishes('2027-02-28'), 1); // 2027 non bissextile → le 28
+  assert.equal(scheduler.sendBirthdayWishes('2028-02-28'), 0); // 2028 bissextile → le 29
+  assert.equal(scheduler.sendBirthdayWishes('2028-02-29'), 1);
 });

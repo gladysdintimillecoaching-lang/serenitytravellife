@@ -130,6 +130,26 @@ function cancelledByFriend(member, by, slot) {
   });
 }
 
+function birthday(user) {
+  notify(user, {
+    type: 'birthday',
+    title: `Joyeux anniversaire, ${user.first_name} ! 🎂`,
+    body: 'Toute l\'équipe du club vous souhaite un très joyeux anniversaire. Que cette nouvelle année vous apporte bon vent et belle mer ! ⛵',
+    data: {},
+    email: {
+      subject: `Joyeux anniversaire ${user.first_name} ! 🎂⛵`,
+      lines: [
+        `Bonjour ${user.first_name},`,
+        'Toute l\'équipe du club vous souhaite un très joyeux anniversaire ! 🎉',
+        'Que cette nouvelle année vous apporte bon vent, belle mer et de magnifiques sessions de multimono.',
+        'Au plaisir de vous retrouver très vite sur l\'eau.',
+        `Eric et l'équipe ${getSettings().club_name}`,
+      ],
+      buttons: [{ label: 'Réserver ma prochaine séance', url: `${config.appUrl}/#/calendrier` }],
+    },
+  });
+}
+
 function lateCancellation(member, slot, hoursBefore) {
   for (const a of admins()) {
     notify(a, {
@@ -174,4 +194,4 @@ function passwordReset(user, token) {
   }));
 }
 
-module.exports = { notify, bookingConfirmed, reminder, slotChanged, slotDeleted, removedByAdmin, cancelledByFriend, lateCancellation, licenseAlert, passwordReset };
+module.exports = { notify, bookingConfirmed, reminder, slotChanged, slotDeleted, removedByAdmin, cancelledByFriend, birthday, lateCancellation, licenseAlert, passwordReset };

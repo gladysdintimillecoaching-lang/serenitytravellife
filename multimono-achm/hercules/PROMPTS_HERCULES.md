@@ -159,6 +159,10 @@ ALERTES DE LICENCE
   • expirée ou absente : bandeau rouge « Votre licence est expirée — La réservation des séances est bloquée tant que votre licence n'est pas renouvelée et mise à jour dans votre profil. » + bouton.
   • Le bouton « Renouveler ma licence » ouvre le site de la fédération dans un nouvel onglet, puis amène le participant au formulaire Licence de son profil.
 
+JOYEUX ANNIVERSAIRE
+- Tâche planifiée : chaque jour à 00:00 (heure de Mayotte), pour chaque membre dont c'est l'anniversaire (date de naissance de sa carte d'inscription), envoyer une notification + un email, UNE SEULE FOIS par an (si le serveur redémarre, ne jamais l'envoyer deux fois). Un membre né un 29 février le reçoit le 28 février les années non bissextiles.
+- Objet : « Joyeux anniversaire Prénom ! 🎂⛵ ». Texte : « Bonjour Prénom, Toute l'équipe du club vous souhaite un très joyeux anniversaire ! 🎉 Que cette nouvelle année vous apporte bon vent, belle mer et de magnifiques sessions de multimono. Au plaisir de vous retrouver très vite sur l'eau. Eric et l'équipe Multimono ACHM », bouton « Réserver ma prochaine séance ».
+
 EMAILS
 - Envoi via le service d'email intégré de Hercules, avec file d'attente et réessais en cas d'échec. Expéditeur : « Multimono ACHM ».
 ```

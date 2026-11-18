@@ -51,10 +51,30 @@ function sendLicenseAlerts(today = todayLocal()) {
   return sent;
 }
 
+/**
+ * Joyeux anniversaire : envoyé dès 00:00 (heure de Mayotte) le jour de l'anniversaire,
+ * une seule fois par an. Né un 29 février : souhaité le 28 février les années non bissextiles.
+ */
+function sendBirthdayWishes(today = todayLocal()) {
+  const [year, mmdd] = [Number(today.slice(0, 4)), today.slice(5)];
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+  const days = [mmdd];
+  if (!leap && mmdd === '02-28') days.push('02-29');
+  const members = db.prepare(`SELECT * FROM users WHERE role = 'member' AND birth_date IS NOT NULL
+    AND substr(birth_date, 6, 5) IN (${days.map(() => '?').join(',')})
+    AND id NOT IN (SELECT user_id FROM birthday_wishes WHERE year = ?)`).all(...days, year);
+  const record = db.prepare('INSERT OR IGNORE INTO birthday_wishes (user_id, year, sent_at) VALUES (?, ?, ?)');
+  for (const u of members) {
+    if (record.run(u.id, year, new Date().toISOString()).changes) notifyLib.birthday(u);
+  }
+  return members.length;
+}
+
 function tick() {
   try {
     sendReminders();
     sendLicenseAlerts();
+    sendBirthdayWishes();
     flushOutbox();
   } catch (err) {
     console.error('Erreur planificateur', err);
@@ -68,4 +88,4 @@ function start() {
   t1.unref(); t2.unref();
 }
 
-module.exports = { start, sendReminders, sendLicenseAlerts };
+module.exports = { start, sendReminders, sendLicenseAlerts, sendBirthdayWishes };

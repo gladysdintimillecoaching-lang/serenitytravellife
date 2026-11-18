@@ -129,6 +129,14 @@ CREATE TABLE IF NOT EXISTS slot_guests (
 );
 CREATE INDEX IF NOT EXISTS idx_guests_slot ON slot_guests(slot_id);
 
+-- Un seul message d'anniversaire par membre et par an
+CREATE TABLE IF NOT EXISTS birthday_wishes (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  year INTEGER NOT NULL,
+  sent_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, year)
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL

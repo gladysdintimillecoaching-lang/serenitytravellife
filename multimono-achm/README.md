@@ -35,6 +35,7 @@ Langue : français · Fuseau horaire : **Indian/Mayotte (UTC+3)**.
 | Modification / suppression d'un créneau par le gérant | ✅ | ✅ |
 | Licence : 30 jours puis 7 jours avant expiration | ✅ | ✅ |
 | Annulation tardive (au gérant) | ✅ | ✅ |
+| **Joyeux anniversaire** à 00:00 (heure de Mayotte) le jour J, une fois par an (né un 29 février : le 28 les années non bissextiles) | ✅ | ✅ |
 
 > Le rappel part à H-24 : une annulation faite depuis ce rappel dans l'heure qui suit (`REMINDER_GRACE_MINUTES`) est considérée « à temps », sinon le bouton du rappel serait toujours tardif. Une réservation faite moins de 24 h avant la séance ne reçoit pas de rappel (la confirmation en tient lieu).
 

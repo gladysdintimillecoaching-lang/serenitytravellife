@@ -216,6 +216,9 @@ db.exec(`CREATE TABLE IF NOT EXISTS activities (
   color TEXT NOT NULL DEFAULT '#0e7490',
   sort_order INTEGER NOT NULL DEFAULT 0
 )`);
+if (!db.prepare('PRAGMA table_info(activities)').all().some((c) => c.name === 'capacity')) {
+  db.exec('ALTER TABLE activities ADD COLUMN capacity INTEGER NOT NULL DEFAULT 6'); // places par défaut d'une séance
+}
 if (!db.prepare('PRAGMA table_info(slots)').all().some((c) => c.name === 'activity_id')) {
   db.exec('ALTER TABLE slots ADD COLUMN activity_id INTEGER REFERENCES activities(id) ON DELETE SET NULL');
   db.exec('ALTER TABLE slots ADD COLUMN label TEXT'); // ex. « Débutant », « Junior »
@@ -229,7 +232,8 @@ const ACTIVITIES = [
 /** Planning de l'école de voile (0 = lundi … 6 = dimanche) */
 function schoolTemplate() {
   const id = (name) => db.prepare('SELECT id FROM activities WHERE name = ?').get(name)?.id ?? null;
-  const row = (activity, weekday, start, end, label = null) => ({ activityId: id(activity), label, weekday, start, end, capacity: 6 });
+  const cap = (name) => (name.startsWith('Planche à voile') ? 4 : 6); // PAV : 4 personnes par séance
+  const row = (activity, weekday, start, end, label = null) => ({ activityId: id(activity), label, weekday, start, end, capacity: cap(activity) });
   return [
     row('École de sport', 2, '14:00', '16:30'),
     row('Multimono en semaine', 3, '09:00', '12:00'),
@@ -292,6 +296,25 @@ if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migration_activities_v1'").
       db.prepare("UPDATE settings SET value = ? WHERE key = 'weekly_template'").run(JSON.stringify(schoolTemplate()));
     }
     db.prepare("INSERT INTO settings (key, value) VALUES ('migration_activities_v1', '1')").run();
+  })();
+}
+
+// PAV : 4 personnes par séance (activité, planning habituel et séances à venir qui le permettent)
+if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migration_pav_capacity_v1'").get()) {
+  db.transaction(() => {
+    const pav = db.prepare("SELECT id FROM activities WHERE name LIKE 'Planche à voile%'").all().map((a) => a.id);
+    for (const id of pav) {
+      db.prepare('UPDATE activities SET capacity = 4 WHERE id = ?').run(id);
+      db.prepare(`UPDATE slots SET capacity = 4 WHERE activity_id = ? AND capacity > 4 AND starts_at > ?
+        AND (SELECT COUNT(*) FROM bookings b WHERE b.slot_id = slots.id AND b.status = 'booked')
+          + (SELECT COALESCE(SUM(places), 0) FROM slot_guests g WHERE g.slot_id = slots.id) <= 4`).run(id, new Date().toISOString());
+    }
+    const raw = db.prepare("SELECT value FROM settings WHERE key = 'weekly_template'").get()?.value;
+    try {
+      const tpl = JSON.parse(raw || '[]').map((r) => (pav.includes(r.activityId) && r.capacity > 4 ? { ...r, capacity: 4 } : r));
+      db.prepare("UPDATE settings SET value = ? WHERE key = 'weekly_template'").run(JSON.stringify(tpl));
+    } catch { /* planning illisible : laissé tel quel */ }
+    db.prepare("INSERT INTO settings (key, value) VALUES ('migration_pav_capacity_v1', '1')").run();
   })();
 }
 

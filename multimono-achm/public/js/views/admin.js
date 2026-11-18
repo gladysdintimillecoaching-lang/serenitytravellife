@@ -212,6 +212,11 @@ export async function slotForm(root, id) {
     b.setAttribute('aria-pressed', String(wd.has(i)));
     updateCount();
   }));
+  // Choisir une activité propose son nombre de places par défaut (ex. PAV : 4)
+  f.activityId?.addEventListener('change', () => {
+    const act = (state.config.activities || []).find((x) => String(x.id) === f.activityId.value);
+    if (act?.capacity) f.capacity.value = Math.max(act.capacity, Number(f.capacity.min) || 1);
+  });
   f.from.addEventListener('change', updateCount);
   f.until.addEventListener('change', updateCount);
 
@@ -754,6 +759,8 @@ export async function activities(root) {
       <form class="card level-row" data-id="${l.id}" style="margin:0">
         <input type="color" name="color" value="${safeColor(l.color)}" aria-label="Couleur">
         <input name="name" value="${l.name}" aria-label="Nom de l'activité" maxlength="60" required>
+        <label class="small" style="display:flex;gap:6px;align-items:center;grid-column:1 / -1">Places par séance
+          <input name="capacity" type="number" min="1" max="500" value="${l.capacity || 6}" style="width:90px;min-height:44px" aria-label="Places par séance"></label>
         <div class="level-actions">
           <button type="button" class="round-btn" data-move="-1" ${i === 0 ? 'disabled' : ''} aria-label="Monter">▲</button>
           <button type="button" class="round-btn" data-move="1" ${i === arr.length - 1 ? 'disabled' : ''} aria-label="Descendre">▼</button>
@@ -763,6 +770,7 @@ export async function activities(root) {
       </form>`)}</div>
     <form class="card form" id="add" style="margin-top:16px"><h2>Ajouter une activité</h2>
       <div class="swatch-row"><input type="color" name="color" value="#8b5cf6" aria-label="Couleur"><input name="name" placeholder="Nom de l'activité (ex. : Catamaran)" maxlength="60" required></div>
+      <label class="small" style="display:flex;gap:6px;align-items:center">Places par séance <input name="capacity" type="number" min="1" max="500" value="6" style="width:90px;min-height:44px"></label>
       <button class="btn block" type="submit">${icon('plus')} Ajouter</button></form>`);
 
   render();
@@ -859,6 +867,11 @@ export async function settings(root) {
   mount(tplBox, html`${JSON.parse(s.weekly_template || '[]').map(tplRow)}`);
   $('#tpl-add', root).addEventListener('click', () => tplBox.insertAdjacentHTML('beforeend', String(tplRow())));
   tplBox.addEventListener('click', (e) => e.target.closest('[data-tpl-del]')?.closest('.tpl-row').remove());
+  tplBox.addEventListener('change', (e) => {
+    const sel = e.target.closest('[data-k=activityId]');
+    const act = sel && (state.config.activities || []).find((x) => String(x.id) === sel.value);
+    if (act?.capacity) sel.closest('.tpl-row').querySelector('[data-k=capacity]').value = act.capacity;
+  });
   const readTpl = () => $$('.tpl-row', tplBox).map((r) => ({
     activityId: $('[data-k=activityId]', r).value ? Number($('[data-k=activityId]', r).value) : null, label: $('[data-k=label]', r).value.trim() || null,
     weekday: Number($('[data-k=weekday]', r).value), start: $('[data-k=start]', r).value,

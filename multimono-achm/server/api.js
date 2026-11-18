@@ -770,12 +770,12 @@ function readActivity(b) {
   const name = str(b?.name, 'Nom de l\'activité', { max: 60 });
   const color = str(b?.color, 'Couleur');
   if (!COLOR_RE.test(color)) throw new AppError(400, 'Couleur invalide.');
-  return { name, color };
+  return { name, color, capacity: b?.capacity === undefined || b?.capacity === '' ? 6 : int(b.capacity, 'Places par défaut', 1, 500) };
 }
 admin.post('/activities', wrap((req, res) => {
   const a = readActivity(req.body);
   const order = (db.prepare('SELECT MAX(sort_order) m FROM activities').get().m || 0) + 1;
-  db.prepare('INSERT INTO activities (name, color, sort_order) VALUES (?, ?, ?)').run(a.name, a.color, order);
+  db.prepare('INSERT INTO activities (name, color, capacity, sort_order) VALUES (?, ?, ?, ?)').run(a.name, a.color, a.capacity, order);
   res.status(201).json({ activities: activitiesAll() });
 }));
 admin.put('/activities/order', wrap((req, res) => {
@@ -786,7 +786,7 @@ admin.put('/activities/order', wrap((req, res) => {
 }));
 admin.put('/activities/:id', wrap((req, res) => {
   const a = readActivity(req.body);
-  if (!db.prepare('UPDATE activities SET name = ?, color = ? WHERE id = ?').run(a.name, a.color, Number(req.params.id)).changes) throw new AppError(404, 'Activité introuvable.');
+  if (!db.prepare('UPDATE activities SET name = ?, color = ?, capacity = ? WHERE id = ?').run(a.name, a.color, a.capacity, Number(req.params.id)).changes) throw new AppError(404, 'Activité introuvable.');
   res.json({ activities: activitiesAll() });
 }));
 admin.get('/activities/:id/usage', wrap((req, res) => {

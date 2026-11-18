@@ -227,7 +227,9 @@ test('planning de l\'école de voile : 13 séances par semaine, activités et gr
     `${d(6)}|14:00-17:00|Laser week-end`,
     `${d(6)}|15:00-17:30|Planche à voile (PAV)|3 · Confirmé`,
   ]);
-  assert.ok(slots.every((x) => x.capacity === 6));
+  // 4 places pour la Planche à voile, 6 pour les autres activités
+  assert.ok(slots.every((x) => x.capacity === (x.activity.name.startsWith('Planche à voile') ? 4 : 6)));
+  assert.equal((await alice('/public/config')).body.activities.find((a) => a.name.startsWith('Planche')).capacity, 4);
   // Eric gère les activités (nom + couleur)
   const acts = (await admin('/admin/activities', { method: 'POST', body: { name: 'Catamaran', color: '#123456' } })).body.activities;
   assert.ok(acts.some((x) => x.name === 'Catamaran'));

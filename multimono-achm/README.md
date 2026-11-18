@@ -22,7 +22,7 @@ Langue : français · Fuseau horaire : **Indian/Mayotte (UTC+3)**.
 - Tableau de bord : séances du jour et de la semaine, taux de remplissage, licences arrivant à expiration, annulations tardives.
 - Séances : création unique ou **récurrente** (jours de pratique, période), modification, suppression (une séance ou toute la suite d'une série). Les inscrits sont notifiés automatiquement (app + email).
 - **Activités de l'école de voile** : chaque séance appartient à une activité (nom + couleur, gérées par Eric dans « Plus › Activités de l'école »), avec un groupe optionnel (ex. « 1 · Débutant »). Les membres filtrent le calendrier par activité ; l'activité figure dans les emails et le rappel.
-- **Planning habituel de l'école** (13 séances par semaine, 6 places chacune, modifiable dans Réglages, créé en un clic sur une période, sans doublon) :
+- **Planning habituel de l'école** (13 séances par semaine, 6 places — **4 pour la Planche à voile (PAV)** —, modifiable dans Réglages, créé en un clic sur une période, sans doublon) :
 
   | Jour | Horaire | Activité |
   |---|---|---|

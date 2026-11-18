@@ -211,6 +211,16 @@ MEMBRES
 - Bouton « Export CSV » (respecte les filtres) : séparateur point-virgule, encodage UTF-8 avec BOM pour Excel, colonnes : Nom ; Prénom ; Date de naissance ; Téléphone ; Email ; Contact urgence ; Tél. urgence ; N° licence ; Obtention licence ; Expiration licence ; Statut licence ; Niveau ; Annulations tardives ; Inscrit le. Protéger contre l'injection de formules (préfixer d'une apostrophe les cellules commençant par = + - @, une tabulation ou un retour chariot).
 - Fiche membre : toute la carte d'inscription, changement de niveau par Eric, séances à venir, historique de ses annulations tardives, bouton « Supprimer ce membre » (avec confirmation).
 
+CARTES ACTIVITÉ (5 séances + 1 offerte = 6)
+- Eric crée une carte pour un membre depuis sa fiche : « Nouvelle carte (5 + 1 offerte) », pour une activité précise ou « Toutes activités ». Il peut CHANGER L'ACTIVITÉ d'une carte à tout moment (même après des séances utilisées), ou la supprimer.
+- Valider une séance utilisée :
+  • depuis la fiche d'une séance : sur chaque inscrit, pastille « 🎟️ N restantes » (ou « Pas de carte »), bouton « ✓ Valider la séance sur sa carte » qui reprend la date et l'activité de la séance ; une même séance ne peut pas être validée deux fois pour un membre ; ensuite pastille « 🎟️ Séance validée » ;
+  • depuis la fiche membre : date (aujourd'hui par défaut) + activité optionnelle, bouton « Valider sur la carte en cours ».
+  La séance est décomptée de la plus ancienne carte en cours valable pour l'activité (une carte « toutes activités » vaut pour tout). Sans carte en cours : message « Prénom n'a pas de carte en cours. Créez d'abord une nouvelle carte. »
+- Affichage de la carte (membre dans son profil « 🎟️ Ma carte activité », Eric dans la fiche membre) : 6 cases, numérotées 1 à 5 puis 🎁 pour l'offerte, avec la DATE utilisée dans chaque case remplie, le nombre de séances restantes, « Il reste la séance offerte 🎁 » après la 5e, le détail des séances (date + activité), et les cartes terminées en historique. Eric peut annuler une validation (petit ×). La liste des membres affiche « 🎟️ N restantes ».
+- À la 5ème séance validée : notification + email, UNE seule fois par carte (même si une validation est annulée puis refaite). Objet « Votre 5ème séance est utilisée — il vous en reste une offerte 🎁 », pastille « 🎁 1 séance offerte », texte : « Vous venez d'utiliser votre 5ème séance (activité), pas de panique ! Il vous en reste une offerte 🎁 Profitez-en bien sur l'eau ! Pour continuer à naviguer après cette séance offerte, pensez à reprendre une nouvelle carte auprès d'Eric. », liste des 5 séances avec leurs dates, boutons « Voir ma carte » et « Réserver ma séance offerte ».
+- À la 6ème : notification « Votre carte activité est terminée 🎟️ … pensez à reprendre une nouvelle carte auprès d'Eric ».
+
 RÉCOMPENSES (8 couleurs de progression, attribuées à la main par Eric)
 - Ordre : Blanc #F8FAFC, Jaune #FACC15, Jaune-orange (moitié #FACC15 / moitié #F97316), Orange #F97316, Orange-vert (moitié #F97316 / moitié #16A34A), Vert #16A34A, Bleu #2563EB, Violet #7C3AED. Les couleurs doubles s'affichent moitié-moitié, comme une ceinture.
 - Chaque membre commence en Blanc. Badge « 🏅 Couleur » sur le profil du membre, dans la liste des membres et la fiche membre.

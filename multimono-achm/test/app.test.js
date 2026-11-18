@@ -332,3 +332,45 @@ test('récompenses : 8 couleurs, Eric change à la main, email de félicitations
   assert.deepEqual((await admin('/admin/members?reward=7')).body.members.map((m) => m.email), ['alice@example.com']);
   assert.ok((await admin('/admin/members.csv')).body.includes('Récompense'));
 });
+
+test('cartes activité : 5 + 1 offerte, dates, email à la 5e séance, activité modifiable', async () => {
+  const bobId = db.prepare("SELECT id FROM users WHERE email = 'bob@example.com'").get().id;
+  // Pas de carte → validation refusée
+  assert.equal((await admin(`/admin/members/${bobId}/card-uses`, { method: 'POST', body: {} })).status, 409);
+  const laser = (await alice('/public/config')).body.activities.find((a) => a.name === 'Laser week-end');
+  const { card } = (await admin(`/admin/members/${bobId}/cards`, { method: 'POST', body: { activityId: laser.id } })).body;
+  assert.deepEqual([card.total, card.remaining], [6, 6]);
+  // Une séance du calendrier : date reprise de la séance, pas de double validation
+  const t = inHours(30);
+  await admin('/admin/slots', { method: 'POST', body: { date: t.date, start: '05:00', end: '06:00', capacity: 6, activityId: laser.id } });
+  const slot = (await bob(`/slots?from=${t.date}&to=${t.date}`)).body.slots.find((x) => x.start === '05:00');
+  let r = await admin(`/admin/members/${bobId}/card-uses`, { method: 'POST', body: { slotId: slot.id } });
+  assert.equal(r.body.card.uses[0].date, t.date);
+  assert.match(r.body.card.uses[0].label, /Laser week-end/);
+  assert.equal((await admin(`/admin/members/${bobId}/card-uses`, { method: 'POST', body: { slotId: slot.id } })).status, 409);
+  // Une autre activité ne décompte pas cette carte… jusqu'à ce qu'Eric change la catégorie
+  const opti = (await alice('/public/config')).body.activities.find((a) => a.name === 'Opti Loisir');
+  assert.equal((await admin(`/admin/members/${bobId}/card-uses`, { method: 'POST', body: { activityId: opti.id } })).status, 409);
+  await admin(`/admin/cards/${card.id}`, { method: 'PUT', body: { activityId: '' } }); // toutes activités
+  const mails = () => db.prepare("SELECT COUNT(*) n FROM outbox WHERE subject LIKE 'Votre 5ème séance%'").get().n;
+  for (let i = 0; i < 3; i++) await admin(`/admin/members/${bobId}/card-uses`, { method: 'POST', body: { date: `2026-11-0${i + 1}`, activityId: opti.id } });
+  assert.equal(mails(), 0);
+  r = await admin(`/admin/members/${bobId}/card-uses`, { method: 'POST', body: { date: '2026-11-05' } }); // 5e
+  assert.equal(r.body.event, 'last_paid');
+  assert.equal(mails(), 1);
+  assert.match(db.prepare("SELECT html FROM outbox WHERE subject LIKE 'Votre 5ème séance%'").get().html, /pas de panique ! Il vous en reste une offerte/);
+  // Le membre voit sa carte (dates et restant)
+  let mine = (await bob('/me/cards')).body.cards[0];
+  assert.deepEqual([mine.used, mine.remaining], [5, 1]);
+  // Annuler puis revalider la 5e ne renvoie pas l'email
+  await admin(`/admin/card-uses/${mine.uses[4].id}`, { method: 'DELETE' });
+  await admin(`/admin/members/${bobId}/card-uses`, { method: 'POST', body: { date: '2026-11-06' } });
+  assert.equal(mails(), 1);
+  r = await admin(`/admin/members/${bobId}/card-uses`, { method: 'POST', body: {} }); // 6e = offerte
+  assert.equal(r.body.event, 'finished');
+  mine = (await bob('/me/cards')).body.cards[0];
+  assert.equal(mine.finished, true);
+  assert.equal(mine.uses[5].offered, true);
+  assert.equal((await admin(`/admin/members/${bobId}/card-uses`, { method: 'POST', body: {} })).status, 409);
+  assert.equal((await bob(`/admin/members/${bobId}/cards`, { method: 'POST', body: {} })).status, 403);
+});

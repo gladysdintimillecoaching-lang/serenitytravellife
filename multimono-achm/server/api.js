@@ -7,6 +7,7 @@ const auth = require('./auth');
 const notifyLib = require('./notify');
 const { AppError, book, cancel, confirmPresence, addGuest, removeByAdmin } = require('./bookings');
 const { REWARDS, MAX_RANK, reward } = require('./rewards');
+const cards = require('./cards');
 const { localToUtc, utcToLocal, todayLocal, addDays, weekdayIndex, licenseStatus, fmtDate, fmtTime } = require('./time');
 
 const router = express.Router();
@@ -326,6 +327,8 @@ router.post('/bookings/:id/confirm', auth.requireAuth, wrap((req, res) => {
   res.json({ ok: true });
 }));
 
+router.get('/me/cards', auth.requireAuth, (req, res) => res.json({ cards: cards.cardsOf(req.user.id) }));
+
 router.get('/notifications', auth.requireAuth, (req, res) => {
   const items = db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT 50').all(req.user.id)
     .map((n) => ({ ...n, data: n.data ? JSON.parse(n.data) : null }));
@@ -401,7 +404,7 @@ admin.get('/slots/:id', wrap((req, res) => {
     SELECT b.id AS booking_id, b.created_at AS booked_at, b.presence_confirmed_at, u.* FROM bookings b JOIN users u ON u.id = b.user_id
     WHERE b.slot_id = ? AND b.status = 'booked' ORDER BY b.created_at, b.id`).all(slot.id)
     .map((r) => ({ ...publicUser(r), bookingId: r.booking_id, bookedAt: r.booked_at, presenceConfirmed: Boolean(r.presence_confirmed_at),
-      sessionLicense: licenseStatus(r.license_expires, slot.date) }));
+      sessionLicense: licenseStatus(r.license_expires, slot.date), cardStatus: cards.slotStatus(r.id, slot.id, slot.activity?.id) }));
   const cancellations = db.prepare(`SELECT b.status, b.cancelled_at, u.first_name, u.last_name FROM bookings b JOIN users u ON u.id = b.user_id
     WHERE b.slot_id = ? AND b.status IN ('cancelled','late_cancelled') ORDER BY b.cancelled_at DESC`).all(slot.id);
   const seriesCount = slot.seriesId ? db.prepare('SELECT COUNT(*) n FROM slots WHERE series_id = ? AND starts_at >= ?').get(slot.seriesId, slot.startsAt).n : 0;
@@ -543,7 +546,7 @@ function memberQuery(q) {
 }
 
 admin.get('/members', wrap((req, res) => {
-  res.json({ members: memberQuery(req.query).map((r) => ({ ...publicUser(r), lateCount: r.late_count, upcoming: r.upcoming })) });
+  res.json({ members: memberQuery(req.query).map((r) => ({ ...publicUser(r), lateCount: r.late_count, upcoming: r.upcoming, cards: cards.summary(r.id) })) });
 }));
 
 admin.get('/members.csv', wrap((req, res) => {
@@ -576,7 +579,7 @@ admin.get('/members/:id', wrap((req, res) => {
   const late = db.prepare('SELECT * FROM late_cancellations WHERE user_id = ? ORDER BY cancelled_at DESC').all(u.id);
   const rewardHistory = db.prepare('SELECT * FROM reward_history WHERE user_id = ? ORDER BY id DESC').all(u.id)
     .map((h) => ({ ...h, from: reward(h.previous_rank).name, to: reward(h.new_rank).name }));
-  res.json({ member: publicUser(u), upcoming, late, rewardHistory });
+  res.json({ member: publicUser(u), upcoming, late, rewardHistory, cards: cards.cardsOf(u.id) });
 }));
 
 // Récompense : Eric change la couleur à la main ; email de félicitations seulement si le membre progresse
@@ -642,6 +645,31 @@ admin.delete('/levels/:id', wrap((req, res) => {
   db.prepare('DELETE FROM levels WHERE id = ?').run(Number(req.params.id));
   res.json({ levels: levelsAll() });
 }));
+
+// Cartes activité (5 séances + 1 offerte)
+const memberById = (id) => {
+  const u = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'member'").get(Number(id));
+  if (!u) throw new AppError(404, 'Membre introuvable.');
+  return u;
+};
+const cardErr = (fn) => { try { return fn(); } catch (e) { if (e instanceof cards.CardError) throw new AppError(e.status, e.message); throw e; } };
+admin.post('/members/:id/cards', wrap((req, res) => {
+  const u = memberById(req.params.id);
+  res.status(201).json({ card: cards.createCard(u.id, { activityId: activityId(req.body?.activityId), note: str(req.body?.note, 'Remarque', { required: false, max: 200 }) }) });
+}));
+admin.put('/cards/:id', wrap((req, res) => {
+  res.json({ card: cardErr(() => cards.setCardActivity(Number(req.params.id), activityId(req.body?.activityId))) });
+}));
+admin.delete('/cards/:id', wrap((req, res) => { cardErr(() => cards.deleteCard(Number(req.params.id))); res.json({ ok: true }); }));
+admin.post('/members/:id/card-uses', wrap((req, res) => {
+  const u = memberById(req.params.id);
+  const b = req.body || {};
+  const r = cardErr(() => cards.validateAndNotify(u, {
+    slotId: b.slotId ? Number(b.slotId) : null, date: b.date ? date(b.date, 'Date') : null, activityId: activityId(b.activityId),
+  }));
+  res.status(201).json(r);
+}));
+admin.delete('/card-uses/:id', wrap((req, res) => { cardErr(() => cards.undoUse(Number(req.params.id))); res.json({ ok: true }); }));
 
 // Activités de l'école de voile
 function readActivity(b) {

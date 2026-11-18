@@ -178,6 +178,39 @@ function rewardPromotion(user, r, next, message) {
   });
 }
 
+/** Carte activité : 5e séance utilisée → il reste la séance offerte */
+function cardLastPaid(user, card) {
+  const what = card.activity ? ` (${card.activity.name})` : '';
+  notify(user, {
+    type: 'card',
+    title: 'Votre 5ème séance est utilisée 🎁',
+    body: `Vous venez d'utiliser votre 5ème séance${what}, pas de panique ! Il vous en reste une offerte.`,
+    data: { cardId: card.id },
+    email: {
+      subject: `Votre 5ème séance est utilisée — il vous en reste une offerte 🎁`,
+      highlight: { label: '🎁 1 séance offerte', color: '#F6E7C8', ink: '#7A5D2A' },
+      lines: [
+        `Bonjour ${user.first_name},`,
+        `Vous venez d'utiliser votre 5ème séance${what}, pas de panique ! Il vous en reste une offerte 🎁`,
+        'Profitez-en bien sur l\'eau ! Pour continuer à naviguer après cette séance offerte, pensez à reprendre une nouvelle carte auprès d\'Eric.',
+        `L'équipe ${getSettings().club_name}`,
+      ],
+      details: card.uses.map((u) => [`Séance ${u.n}`, `${new Date(`${u.date}T12:00:00Z`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}${u.label ? ` · ${u.label}` : ''}`]),
+      buttons: [{ label: 'Voir ma carte', url: `${config.appUrl}/#/profil` }, { label: 'Réserver ma séance offerte', url: `${config.appUrl}/#/calendrier`, color: '#0b3954' }],
+    },
+  });
+}
+
+/** Carte activité terminée (séance offerte utilisée) : notification dans l'app */
+function cardFinished(user, card) {
+  notify(user, {
+    type: 'card',
+    title: 'Votre carte activité est terminée 🎟️',
+    body: `Vous avez utilisé vos ${card.total} séances${card.activity ? ` (${card.activity.name})` : ''}, dont la séance offerte. Pensez à reprendre une nouvelle carte auprès d'Eric pour continuer à naviguer !`,
+    data: { cardId: card.id },
+  });
+}
+
 function lateCancellation(member, slot, hoursBefore) {
   for (const a of admins()) {
     notify(a, {
@@ -222,4 +255,4 @@ function passwordReset(user, token) {
   }));
 }
 
-module.exports = { notify, bookingConfirmed, reminder, slotChanged, slotDeleted, removedByAdmin, cancelledByFriend, birthday, rewardPromotion, lateCancellation, licenseAlert, passwordReset };
+module.exports = { notify, bookingConfirmed, reminder, slotChanged, slotDeleted, removedByAdmin, cancelledByFriend, birthday, rewardPromotion, cardLastPaid, cardFinished, lateCancellation, licenseAlert, passwordReset };

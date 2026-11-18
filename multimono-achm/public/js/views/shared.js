@@ -213,3 +213,26 @@ export function revealActiveChip(root) {
   const chip = root.querySelector('.act-filter [aria-pressed="true"]');
   if (chip) chip.parentElement.scrollLeft = chip.offsetLeft - chip.parentElement.offsetLeft - 16;
 }
+
+/** Carte activité : 5 cases payées + 1 case offerte, avec les dates utilisées */
+const fmtUse = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString('fr-FR', { timeZone: 'UTC', day: 'numeric', month: 'short' });
+export function cardView(card, { admin = false } = {}) {
+  const boxes = Array.from({ length: card.total }, (_, i) => {
+    const use = card.uses[i];
+    const gift = i >= card.paid;
+    return html`<div class="cbox ${use ? 'used' : ''} ${gift ? 'gift' : ''}">
+      <span class="cnum">${gift ? '🎁' : i + 1}</span>
+      ${use ? html`<span class="cdate">${fmtUse(use.date)}</span>${admin ? html`<button type="button" class="cundo" data-undo-use="${use.id}" aria-label="Annuler la validation du ${fmtUse(use.date)}">×</button>` : ''}`
+    : html`<span class="cdate muted">${gift ? 'offerte' : 'libre'}</span>`}
+    </div>`;
+  });
+  const left = card.remaining;
+  return html`<div class="cardv ${card.finished ? 'done' : ''}">
+    <div class="row between"><strong>${card.activity ? card.activity.name : 'Toutes activités'}</strong>
+      <span class="badge ${card.finished ? '' : left === 1 ? 'sand' : 'ok'}">${card.finished ? 'Terminée' : `${left} séance${left > 1 ? 's' : ''} restante${left > 1 ? 's' : ''}`}</span></div>
+    <div class="cboxes">${boxes}</div>
+    ${!card.finished && card.used === card.paid ? html`<p class="small" style="margin:6px 0 0;color:var(--sand-ink);font-weight:700">Il reste la séance offerte 🎁</p>` : ''}
+    ${card.uses.length ? html`<details class="small" style="margin-top:6px"><summary>Détail des séances utilisées</summary>
+      <ul style="margin:6px 0 0;padding-left:18px">${card.uses.map((u) => html`<li>Séance ${u.n}${u.offered ? ' (offerte)' : ''} : ${new Date(`${u.date}T12:00:00Z`).toLocaleDateString('fr-FR', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}${u.label ? ` · ${u.label}` : ''}</li>`)}</ul></details>` : ''}
+  </div>`;
+}

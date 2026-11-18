@@ -1,6 +1,6 @@
 import { api, state, html, mount, $, $$, icon, modal, toast, busy, formData, showError, levelBadge, licenseBadge, rewardBadge, rewardBg, safeColor,
   today, addDays, mondayOf, fmtDay, fmtFull, fmtH, fmtDateTime, initials, go, activityTitle, slotColor } from '../lib.js';
-import { placesBar, emptyState, activityFilter, filterByActivity, savedActivity, saveActivity, revealActiveChip } from './shared.js';
+import { placesBar, emptyState, activityFilter, filterByActivity, savedActivity, saveActivity, revealActiveChip, cardView } from './shared.js';
 import { autoRefresh, weekNav, dayStrip, dayGroups, logout } from './member.js';
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -273,7 +273,11 @@ export async function slotDetail(root, id) {
       <div class="grow">
         <a class="name" href="#/admin/membre/${p.id}" style="text-decoration:none">${p.firstName} ${p.lastName.toUpperCase()}</a>
         <div class="row" style="gap:6px;margin-top:4px">${levelBadge(p.level)} ${licenseBadge(p.sessionLicense)}
-          ${p.presenceConfirmed ? html`<span class="badge ok">✓ Présence confirmée</span>` : ''}</div>
+          ${p.presenceConfirmed ? html`<span class="badge ok">✓ Présence confirmée</span>` : ''}
+          ${p.cardStatus.validated ? html`<span class="badge ok">🎟️ Séance validée</span>`
+    : p.cardStatus.card ? html`<span class="badge ${p.cardStatus.card.remaining <= 1 ? 'sand' : ''}">🎟️ ${p.cardStatus.card.remaining} restante${p.cardStatus.card.remaining > 1 ? 's' : ''}</span>`
+      : html`<span class="badge warn">🎟️ Pas de carte</span>`}</div>
+        ${!p.cardStatus.validated && p.cardStatus.card ? html`<button class="btn sm secondary" style="margin-top:6px" data-validate="${p.id}" data-name="${p.firstName}">✓ Valider la séance sur sa carte</button>` : ''}
         <div class="sub" style="margin-top:4px">Urgence : ${p.emergencyName} · <a href="tel:${p.emergencyPhone}">${p.emergencyPhone}</a></div>
       </div>
       <div class="row" style="gap:6px;flex-wrap:nowrap">
@@ -367,6 +371,18 @@ export async function slotDetail(root, id) {
   });
 
   root.addEventListener('click', async (e) => {
+    const v = e.target.closest('[data-validate]');
+    if (v) {
+      await busy(v, async () => {
+        try {
+          const r = await api(`/admin/members/${v.dataset.validate}/card-uses`, { method: 'POST', body: { slotId: s.id } });
+          toast(r.event === 'last_paid' ? `5ème séance de ${v.dataset.name} — email « il vous en reste une offerte » envoyé 🎁`
+            : r.event === 'finished' ? `Carte de ${v.dataset.name} terminée.` : `Séance validée : il reste ${r.card.remaining} séance(s) à ${v.dataset.name}.`, 'ok');
+          reload();
+        } catch (err) { toast(err.message, 'bad'); }
+      });
+      return;
+    }
     const b = e.target.closest('[data-del-booking], [data-del-guest]');
     if (!b) return;
     const isGuest = b.dataset.delGuest !== undefined;
@@ -428,7 +444,7 @@ export async function members(root) {
     $('#csv', root).href = `/api/admin/members.csv?${qs()}`;
     mount($('#results', root), html`
       <p class="small muted">${list.length} membre${list.length > 1 ? 's' : ''}</p>
-      ${list.length ? html`<div class="list">${list.map((m) => memberItem(m, m.lateCount ? html`<span class="badge bad">${m.lateCount} annul. tardive${m.lateCount > 1 ? 's' : ''}</span>` : ''))}</div>`
+      ${list.length ? html`<div class="list">${list.map((m) => memberItem(m, html`${m.cards?.active ? html`<span class="badge ${m.cards.remaining <= 1 ? 'sand' : ''}">🎟️ ${m.cards.remaining} restante${m.cards.remaining > 1 ? 's' : ''}</span>` : ''}${m.lateCount ? html`<span class="badge bad">${m.lateCount} annul. tardive${m.lateCount > 1 ? 's' : ''}</span>` : ''}`))}</div>`
     : emptyState('🔎', 'Aucun membre ne correspond à ces filtres.')}`);
   }
   let timer;
@@ -440,7 +456,7 @@ export async function members(root) {
 }
 
 export async function memberDetail(root, id) {
-  const { member: m, upcoming, late, rewardHistory = [] } = await api(`/admin/members/${id}`);
+  const { member: m, upcoming, late, rewardHistory = [], cards = [] } = await api(`/admin/members/${id}`);
   const rewards = state.config.rewards || [];
   mount(root, html`
     <div class="page-head"><div><a class="small" href="#/admin/membres">‹ Membres</a><h1>${m.firstName} ${m.lastName}</h1></div></div>
@@ -460,6 +476,32 @@ export async function memberDetail(root, id) {
         </dl>
       </div>
       <div>
+        <div class="card" id="cards"><div class="card-title"><h2>🎟️ Cartes activité</h2><span class="small muted">5 + 1 offerte</span></div>
+          ${cards.length ? html`<div class="list">${cards.map((c) => html`<div data-card="${c.id}" style="border:1px solid var(--line);border-radius:14px;padding:12px">
+            ${cardView(c, { admin: true })}
+            <div class="row" style="margin-top:10px;gap:8px;flex-wrap:nowrap">
+              <select data-card-act aria-label="Activité de la carte" style="min-height:44px">
+                <option value="">Toutes activités</option>
+                ${(state.config.activities || []).map((a) => html`<option value="${a.id}" ${c.activity?.id === a.id ? 'selected' : ''}>${a.name}</option>`)}</select>
+              <button type="button" class="round-btn" data-card-del aria-label="Supprimer la carte">${icon('trash')}</button>
+            </div></div>`)}</div>` : html`<p class="muted">Aucune carte.</p>`}
+          <form class="form" id="use" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+            <h3 style="margin:0">Valider une séance utilisée</h3>
+            <div class="form-grid two">
+              <div class="field"><label for="udate">Date</label><input id="udate" name="date" type="date" value="${today()}" max="${today()}"></div>
+              <div class="field"><label for="uact">Activité</label><select id="uact" name="activityId"><option value="">—</option>
+                ${(state.config.activities || []).map((a) => html`<option value="${a.id}">${a.name}</option>`)}</select></div>
+            </div>
+            <button class="btn block" type="submit">✓ Valider sur la carte en cours</button>
+            <p class="small muted" style="margin:0">Astuce : depuis la fiche d'une séance, le bouton « Valider la séance » reprend automatiquement la date et l'activité.</p>
+          </form>
+          <form class="form" id="newcard" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)">
+            <h3 style="margin:0">Nouvelle carte (5 + 1 offerte)</h3>
+            <select name="activityId" aria-label="Activité de la nouvelle carte"><option value="">Toutes activités</option>
+              ${(state.config.activities || []).map((a) => html`<option value="${a.id}">${a.name}</option>`)}</select>
+            <button class="btn secondary block" type="submit">${icon('plus')} Créer la carte</button>
+          </form>
+        </div>
         <form class="card form" id="rwd"><h2>🏅 Récompense</h2>
           <p class="small muted" style="margin:0">Couleur actuelle : ${rewardBadge(m.reward)}${m.rewardUpdatedAt ? html` · depuis le ${fmtFull(m.rewardUpdatedAt.slice(0, 10))}` : ''}</p>
           <div class="reward-pick" role="radiogroup" aria-label="Nouvelle couleur">
@@ -492,6 +534,51 @@ export async function memberDetail(root, id) {
       try { await api(`/admin/members/${m.id}/level`, { method: 'PUT', body: formData(f) }); toast('Niveau mis à jour ✅', 'ok'); go(location.hash); } catch (err) { toast(err.message, 'bad'); }
     });
   });
+  // Cartes activité
+  const cardsBox = $('#cards', root);
+  const nc = $('#newcard', root);
+  nc.addEventListener('submit', (e) => {
+    e.preventDefault();
+    busy(nc.querySelector('[type=submit]'), async () => {
+      try { await api(`/admin/members/${m.id}/cards`, { method: 'POST', body: formData(nc) }); toast('Nouvelle carte créée 🎟️', 'ok'); go(location.hash); } catch (err) { toast(err.message, 'bad'); }
+    });
+  });
+  const uf = $('#use', root);
+  uf.addEventListener('submit', (e) => {
+    e.preventDefault();
+    busy(uf.querySelector('[type=submit]'), async () => {
+      try {
+        const r = await api(`/admin/members/${m.id}/card-uses`, { method: 'POST', body: formData(uf) });
+        toast(r.event === 'last_paid' ? `5ème séance — email « il vous en reste une offerte » envoyé à ${m.firstName} 🎁`
+          : r.event === 'finished' ? 'Carte terminée (séance offerte utilisée).' : `Séance validée : il reste ${r.card.remaining} séance(s).`, 'ok');
+        go(location.hash);
+      } catch (err) { toast(err.message, 'bad'); }
+    });
+  });
+  cardsBox.addEventListener('change', async (e) => {
+    const sel = e.target.closest('[data-card-act]');
+    if (!sel) return;
+    try {
+      await api(`/admin/cards/${sel.closest('[data-card]').dataset.card}`, { method: 'PUT', body: { activityId: sel.value } });
+      toast(`Carte passée en « ${sel.selectedOptions[0].textContent} »`, 'ok'); go(location.hash);
+    } catch (err) { toast(err.message, 'bad'); }
+  });
+  cardsBox.addEventListener('click', async (e) => {
+    const undo = e.target.closest('[data-undo-use]');
+    const del = e.target.closest('[data-card-del]');
+    if (undo) {
+      const ok = await modal({ title: 'Annuler cette validation ?', icon: '↩️', tone: 'warn', body: 'La séance sera rendue sur la carte.',
+        actions: [{ label: 'Garder', value: false, cls: 'secondary' }, { label: 'Annuler la validation', value: true }] });
+      if (!ok) return;
+      try { await api(`/admin/card-uses/${undo.dataset.undoUse}`, { method: 'DELETE' }); toast('Validation annulée.', 'ok'); go(location.hash); } catch (err) { toast(err.message, 'bad'); }
+    } else if (del) {
+      const ok = await modal({ title: 'Supprimer cette carte ?', icon: '🗑️', tone: 'danger', body: 'La carte et ses séances validées seront supprimées.',
+        actions: [{ label: 'Garder', value: false, cls: 'secondary' }, { label: 'Supprimer', value: true, cls: 'danger' }] });
+      if (!ok) return;
+      try { await api(`/admin/cards/${del.closest('[data-card]').dataset.card}`, { method: 'DELETE' }); toast('Carte supprimée.', 'ok'); go(location.hash); } catch (err) { toast(err.message, 'bad'); }
+    }
+  });
+
   const rf = $('#rwd', root);
   rf.addEventListener('submit', async (e) => {
     e.preventDefault();

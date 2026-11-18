@@ -1,6 +1,6 @@
 import { api, state, html, mount, $, $$, icon, modal, toast, busy, formData, showError, levelBadge, licenseBadge, rewardBadge, rewardBg,
   today, addDays, mondayOf, fmtDay, fmtShort, fmtFull, fmtH, fmtWhen, hoursUntil, go, activityTitle, slotColor } from '../lib.js';
-import { slotCard, bookFlow, friendFlow, cancelFlow, licenseBanner, emptyState, placesBar, refreshUnread, activityFilter, filterByActivity, savedActivity, saveActivity, revealActiveChip } from './shared.js';
+import { slotCard, bookFlow, friendFlow, cancelFlow, licenseBanner, emptyState, placesBar, refreshUnread, activityFilter, filterByActivity, savedActivity, saveActivity, revealActiveChip, cardView } from './shared.js';
 import { showRules } from './auth.js';
 
 /** Rafraîchit une vue tant qu'elle est affichée */
@@ -193,9 +193,11 @@ export async function notifications(root) {
 
 // ══════════ Profil ══════════
 export async function profile(root) {
-  const { user } = await api('/me');
+  const [{ user }, { cards }] = await Promise.all([api('/me'), api('/me/cards')]);
   state.user = user;
   const levels = state.config.levels;
+  const current = cards.filter((c) => !c.finished);
+  const past = cards.filter((c) => c.finished);
   mount(root, html`
     <div class="page-head"><h1>Mon profil</h1></div>
     <div id="lic-banner">${licenseBanner(user)}</div>
@@ -205,6 +207,12 @@ export async function profile(root) {
         <h2 style="margin:0">${user.firstName} ${user.lastName}</h2>
         <div class="row" style="margin-top:6px">${levelBadge(user.level)} ${rewardBadge(user.reward)} ${licenseBadge(user.license)}</div>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><h2>🎟️ Ma carte activité</h2><span class="small muted">5 séances + 1 offerte</span></div>
+      ${current.length ? html`<div class="list">${current.map((c) => cardView(c))}</div>`
+    : html`<p class="muted" style="margin:0">Pas de carte en cours. Demandez une nouvelle carte à Eric pour vos prochaines séances.</p>`}
+      ${past.length ? html`<details style="margin-top:12px"><summary class="small">Cartes terminées (${past.length})</summary><div class="list" style="margin-top:8px">${past.map((c) => cardView(c))}</div></details>` : ''}
     </div>
     ${rewardCard(user.reward)}
 

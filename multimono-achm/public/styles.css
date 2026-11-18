@@ -441,3 +441,15 @@ table.table { width: 100%; border-collapse: collapse; font-size: .92rem; }
 .act-filter { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 6px; scrollbar-width: thin; }
 .act-filter .chip { flex: none; white-space: nowrap; min-height: 40px; font-size: .88rem; border-color: var(--chip, var(--line)); }
 .act-filter .chip[aria-pressed="true"] { background: var(--chip, var(--ocean)); border-color: var(--chip, var(--ocean)); color: #fff; }
+
+/* Cartes activité (5 + 1 offerte) */
+.cboxes { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 8px; }
+.cbox { position: relative; border: 2px dashed var(--line); border-radius: 12px; padding: 8px 2px; text-align: center; display: grid; gap: 2px; background: #fff; }
+.cbox .cnum { font-weight: 800; color: var(--muted); }
+.cbox .cdate { font-size: .72rem; font-weight: 700; }
+.cbox.used { border-style: solid; border-color: var(--ocean); background: #ecfeff; }
+.cbox.used .cnum { color: var(--ocean); }
+.cbox.gift { border-color: var(--sand-2); background: #fffaf0; }
+.cbox.gift.used { border-color: var(--sand-ink); background: var(--sand); }
+.cbox .cundo { position: absolute; top: -8px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--danger); color: #fff; font-weight: 800; cursor: pointer; line-height: 1; }
+.cardv.done { opacity: .75; }

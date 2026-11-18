@@ -15,43 +15,51 @@ const levelStmt = db.prepare('SELECT * FROM levels WHERE id = ?');
 /**
  * Réserve une place (transaction immédiate : pas de surréservation possible).
  * byAdmin : inscription faite par le gérant (pas de contrôle de licence/niveau, il décide).
+ * bookedBy : membre qui inscrit un ami du club (les contrôles portent sur l'ami).
  */
-const bookTx = db.transaction((user, slotId, byAdmin = false) => {
+const bookTx = db.transaction((user, slotId, byAdmin = false, bookedBy = null) => {
   const slot = slotStmt.get(slotId);
   if (!slot) throw new AppError(404, 'Cette séance n\'existe plus.');
   if (new Date(slot.starts_at) <= new Date()) throw new AppError(400, 'Cette séance a déjà commencé.');
-  if (!byAdmin) checkEligibility(user, slot);
+  if (!byAdmin) checkEligibility(user, slot, bookedBy ? user.first_name : null);
   if (db.prepare("SELECT 1 FROM bookings WHERE slot_id = ? AND user_id = ? AND status = 'booked'").get(slotId, user.id)) {
-    throw new AppError(409, byAdmin ? 'Ce membre est déjà inscrit à cette séance.' : 'Vous êtes déjà inscrit(e) à cette séance.');
+    throw new AppError(409, byAdmin ? 'Ce membre est déjà inscrit à cette séance.'
+      : bookedBy ? `${user.first_name} est déjà inscrit(e) à cette séance.` : 'Vous êtes déjà inscrit(e) à cette séance.');
   }
   if (takenStmt.get(slotId).n >= slot.capacity) throw new AppError(409, 'Désolé, cette séance est complète.', { code: 'full' });
 
-  const info = db.prepare('INSERT INTO bookings (slot_id, user_id) VALUES (?, ?)').run(slotId, user.id);
+  const info = db.prepare('INSERT INTO bookings (slot_id, user_id, booked_by) VALUES (?, ?, ?)').run(slotId, user.id, bookedBy ? bookedBy.id : null);
   return { slot, booking: { id: Number(info.lastInsertRowid) } };
 });
 
-function checkEligibility(user, slot) {
+function checkEligibility(user, slot, friendName = null) {
   const sessionDay = utcToLocal(slot.starts_at).date;
   const lic = licenseStatus(user.license_expires, sessionDay);
+  // Pour un ami : message à son sujet, sans renvoyer vers « votre profil »
+  const code = friendName ? 'friend_license' : 'license';
   if (lic.status === 'missing') {
-    throw new AppError(403, 'Aucune licence enregistrée. Ajoutez votre numéro et la date d\'expiration de votre licence dans votre profil pour pouvoir réserver.', { code: 'license' });
+    throw new AppError(403, friendName
+      ? `${friendName} n'a pas de licence enregistrée : l'inscription est impossible pour le moment.`
+      : 'Aucune licence enregistrée. Ajoutez votre numéro et la date d\'expiration de votre licence dans votre profil pour pouvoir réserver.', { code });
   }
   if (lic.status === 'expired') {
-    throw new AppError(403, 'Votre licence ne sera plus valide à la date de cette séance. Pour des raisons d\'assurance, la réservation est bloquée : renouvelez votre licence puis mettez à jour votre profil.', { code: 'license' });
+    throw new AppError(403, friendName
+      ? `La licence de ${friendName} ne sera plus valide à la date de cette séance. Pour des raisons d'assurance, l'inscription est bloquée.`
+      : 'Votre licence ne sera plus valide à la date de cette séance. Pour des raisons d\'assurance, la réservation est bloquée : renouvelez votre licence puis mettez à jour votre profil.', { code });
   }
 
   if (getSettings().enforce_level === '1' && slot.level_id) {
     const required = levelStmt.get(slot.level_id);
     const mine = user.level_id ? levelStmt.get(user.level_id) : null;
     if (required && (!mine || mine.sort_order < required.sort_order)) {
-      throw new AppError(403, `Cette séance demande le niveau « ${required.name} » minimum.`, { code: 'level' });
+      throw new AppError(403, `Cette séance demande le niveau « ${required.name} » minimum${friendName ? ` (${friendName} n'a pas ce niveau)` : ''}.`, { code: 'level' });
     }
   }
 }
 
-function book(user, slotId, { byAdmin = false } = {}) {
-  const { slot, booking } = bookTx.immediate(user, slotId, byAdmin);
-  notifyLib.bookingConfirmed(user, slot, booking);
+function book(user, slotId, { byAdmin = false, bookedBy = null } = {}) {
+  const { slot, booking } = bookTx.immediate(user, slotId, byAdmin, bookedBy);
+  notifyLib.bookingConfirmed(user, slot, booking, bookedBy);
   return booking;
 }
 
@@ -85,7 +93,8 @@ function removeByAdmin(bookingId) {
 function cancel(user, bookingId, opts = {}) {
   const b = db.prepare(`SELECT b.*, s.starts_at, s.ends_at, s.level_id, s.location FROM bookings b
                         JOIN slots s ON s.id = b.slot_id WHERE b.id = ?`).get(bookingId);
-  if (!b || b.user_id !== user.id) throw new AppError(404, 'Réservation introuvable.');
+  // Annulable par le membre inscrit, ou par l'ami qui l'a inscrit
+  if (!b || (b.user_id !== user.id && b.booked_by !== user.id)) throw new AppError(404, 'Réservation introuvable.');
   if (b.status !== 'booked') throw new AppError(409, 'Cette réservation est déjà annulée.');
   const now = Date.now();
   const start = new Date(b.starts_at).getTime();
@@ -108,6 +117,7 @@ function cancel(user, bookingId, opts = {}) {
     }
   })();
   if (late) notifyLib.lateCancellation(member, slotStmt.get(b.slot_id), hoursBefore);
+  if (member.id !== user.id) notifyLib.cancelledByFriend(member, user, slotStmt.get(b.slot_id));
   return { late, needsConfirm: false, hoursBefore };
 }
 

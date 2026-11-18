@@ -1,6 +1,6 @@
 import { api, state, html, mount, $, $$, icon, modal, toast, busy, formData, showError, levelBadge, licenseBadge,
   today, addDays, mondayOf, fmtDay, fmtShort, fmtFull, fmtH, fmtWhen, hoursUntil, go } from '../lib.js';
-import { slotCard, bookFlow, cancelFlow, licenseBanner, emptyState, placesBar, refreshUnread } from './shared.js';
+import { slotCard, bookFlow, friendFlow, cancelFlow, licenseBanner, emptyState, placesBar, refreshUnread } from './shared.js';
 import { showRules } from './auth.js';
 
 /** Rafraîchit une vue tant qu'elle est affichée */
@@ -89,6 +89,7 @@ export async function calendar(root) {
     else if (t.dataset.today !== undefined) { cal.day = today(); await load(); }
     else if (t.dataset.day) { cal.day = t.dataset.day; render(); }
     else if (t.dataset.book) { await busy(t, () => bookFlow(Number(t.dataset.book))); await load(); }
+    else if (t.dataset.friend) { if (await friendFlow(slots.find((s) => s.id === Number(t.dataset.friend)))) await load(); }
     else if (t.dataset.cancel) {
       const ok = await cancelFlow(t.dataset.start, (force) => api(`/bookings/${t.dataset.cancel}/cancel`, { method: 'POST', body: { force } }));
       if (ok) await load();
@@ -101,7 +102,7 @@ export async function calendar(root) {
 // ══════════ Mes réservations ══════════
 export async function bookings(root) {
   async function load() {
-    const { upcoming } = await api('/me/bookings');
+    const { upcoming, friends = [] } = await api('/me/bookings');
     mount(root, html`
       <div class="page-head"><h1>Mes réservations</h1><a class="btn sm secondary" href="#/calendrier">${icon('plus')} Réserver</a></div>
       ${licenseBanner(state.user, { compact: true })}
@@ -124,6 +125,13 @@ export async function bookings(root) {
         </article>`;
   })}</div>`
     : emptyState('⛵', 'Aucune séance à venir.', html`<a class="btn" href="#/calendrier">Réserver une séance</a>`)}
+      ${friends.length ? html`<h2 style="margin:22px 4px 10px">🤝 Amis que j'ai inscrits</h2><div class="list">${friends.map(({ bookingId, friendName, slot }) => html`
+        <article class="slot" style="--slot-color:${slot.level?.color || '#22b8cf'}">
+          <div class="slot-head"><div><div class="small muted" style="font-weight:700">${fmtDay(slot.date)}</div>
+            <div class="slot-time">${fmtH(slot.start)} <small>– ${fmtH(slot.end)}</small></div></div>${levelBadge(slot.level)}</div>
+          <div class="row between"><span>Pour <strong>${friendName}</strong></span>
+            <button class="btn sm danger-outline" data-cancel="${bookingId}" data-start="${slot.startsAt}">Annuler</button></div>
+        </article>`)}</div>` : ''}
       <p class="small muted center" style="margin-top:16px">Toute annulation doit être faite au minimum 24 h avant la séance.</p>`);
   }
   root.addEventListener('click', async (e) => {

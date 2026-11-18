@@ -31,6 +31,10 @@ export function slotCard(slot, { showDate = false } = {}) {
       <button class="btn danger-outline" data-cancel="${slot.myBookingId}" data-start="${slot.startsAt}">Annuler</button></div>`;
   } else if (slot.full) action = html`<button class="btn block" disabled aria-disabled="true">Complet</button>`;
   else action = html`<button class="btn block" data-book="${slot.id}">Réserver</button>`;
+  // Inscrire un ami du club (tant qu'il reste de la place)
+  const friendBtn = !slot.past && !slot.full
+    ? html`<button class="btn ghost sm" data-friend="${slot.id}" style="justify-self:start">${icon('plus')} Inscrire un ami du club</button>` : '';
+  const friends = (slot.friendBookings || []).filter(() => !slot.past);
 
   return html`
     <article class="slot ${mine ? 'mine' : ''} ${slot.full ? 'is-full' : ''} ${slot.past ? 'past' : ''}" style="--slot-color:${safeColor(slot.level?.color)}">
@@ -45,8 +49,66 @@ export function slotCard(slot, { showDate = false } = {}) {
         ${slot.location ? html`<span>${icon('pin', 'width="16" height="16"')} ${slot.location}</span>` : ''}
         ${slot.notes ? html`<span>· ${slot.notes}</span>` : ''}</div>` : ''}
       ${placesBar(slot)}
+      ${participantsList(slot)}
+      ${friends.length ? html`<div class="list" style="gap:6px">${friends.map((f) => html`
+        <div class="row between small" style="background:var(--foam);border-radius:12px;padding:6px 10px">
+          <span>Vous avez inscrit <strong>${f.firstName}</strong></span>
+          <button class="btn sm danger-outline" data-cancel="${f.bookingId}" data-start="${slot.startsAt}" data-friend-name="${f.firstName}">Annuler</button></div>`)}</div>` : ''}
       ${action}
+      ${friendBtn}
     </article>`;
+}
+
+/** Inscrits visibles par tous : nombre + prénoms */
+export function participantsList(slot) {
+  const list = slot.participants || [];
+  if (!list.length) return html`<div class="small muted">Aucun inscrit pour l'instant — soyez le premier !</div>`;
+  return html`<div class="participants">
+    <span class="small" style="font-weight:700;color:var(--abyss)">${slot.booked} inscrit${slot.booked > 1 ? 's' : ''} :</span>
+    ${list.map((p) => html`<span class="pchip ${p.me ? 'me' : ''} ${p.guest ? 'guest' : ''}">${p.me ? 'Vous' : p.firstName}${p.guest && p.places > 1 ? ` ×${p.places}` : ''}</span>`)}
+  </div>`;
+}
+
+/** Choisir un ami du club puis l'inscrire */
+export async function friendFlow(slot) {
+  let chosen = null;
+  const ok = await modal({
+    title: 'Inscrire un ami du club', icon: '🤝', left: true,
+    body: html`<p class="small muted">${fmtDay(slot.date)}, ${fmtH(slot.start)} – ${fmtH(slot.end)} · ${slot.remaining} place${slot.remaining > 1 ? 's' : ''} libre${slot.remaining > 1 ? 's' : ''}.
+        Votre ami doit être membre du club : il sera prévenu par notification et par email.</p>
+      <input type="search" id="fsearch" placeholder="Prénom ou nom (2 lettres minimum)…" aria-label="Rechercher un membre du club" autocomplete="off">
+      <div class="list" id="fresults" style="margin-top:10px;max-height:40vh;overflow:auto"></div>`,
+    actions: [{ label: 'Annuler', value: false, cls: 'secondary' }, { label: 'Inscrire mon ami', value: true }],
+    onOpen(m) {
+      const input = m.querySelector('#fsearch'); const out = m.querySelector('#fresults');
+      let t;
+      input.addEventListener('input', () => {
+        clearTimeout(t);
+        t = setTimeout(async () => {
+          const { members } = await api(`/members/search?q=${encodeURIComponent(input.value.trim())}`);
+          chosen = null;
+          out.innerHTML = String(input.value.trim().length < 2 ? '' : members.length ? html`${members.map((mb) => html`<label class="check" style="padding:10px">
+            <input type="radio" name="friend" value="${mb.id}" data-name="${mb.firstName}">
+            <span><strong>${mb.firstName} ${mb.lastInitial}.</strong> ${levelBadge(mb.level)}</span></label>`)}`
+            : html`<p class="small muted">Aucun membre trouvé.</p>`);
+          out.querySelectorAll('input[name=friend]').forEach((r) => r.addEventListener('change', () => { chosen = { id: Number(r.value), name: r.dataset.name }; }));
+        }, 200);
+      });
+      setTimeout(() => input.focus(), 50);
+    },
+  });
+  if (!ok) return false;
+  if (!chosen) { toast('Choisissez un membre dans la liste.', 'bad'); return false; }
+  try {
+    await api(`/slots/${slot.id}/book`, { method: 'POST', body: { friendId: chosen.id } });
+    modal({ title: `${chosen.name} est inscrit(e) !`, icon: '🤝', tone: 'success',
+      body: html`<p>${fmtDay(slot.date)}, ${fmtH(slot.start)} – ${fmtH(slot.end)}</p><p class="small muted">${chosen.name} a été prévenu(e) par notification et par email. Vous pouvez annuler cette inscription depuis « Mes réservations ».</p>`,
+      actions: [{ label: 'Parfait !', value: true }] });
+    return true;
+  } catch (err) {
+    modal({ title: err.data?.code === 'full' ? 'Séance complète' : 'Inscription impossible', icon: err.data?.code === 'full' ? '🚫' : '⚠️', tone: 'warn', body: err.message });
+    return false;
+  }
 }
 
 /** Fenêtre « licence » quand la réservation est bloquée */

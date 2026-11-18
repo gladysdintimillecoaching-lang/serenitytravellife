@@ -27,15 +27,18 @@ function slotDetails(slot) {
 const short = (slot) => `${fmtDate(slot.starts_at)} à ${fmtTime(slot.starts_at)}`;
 const admins = () => db.prepare("SELECT * FROM users WHERE role = 'admin'").all();
 
-function bookingConfirmed(user, slot, booking) {
+function bookingConfirmed(user, slot, booking, bookedBy = null) {
+  const by = bookedBy ? `${bookedBy.first_name} ${bookedBy.last_name}` : null;
   notify(user, {
     type: 'booking',
-    title: 'Réservation confirmée ✅',
-    body: `Votre place est réservée pour la séance du ${short(slot)}.`,
+    title: by ? `${bookedBy.first_name} vous a inscrit(e) ⛵` : 'Réservation confirmée ✅',
+    body: by ? `${by} vous a réservé une place pour la séance du ${short(slot)}. Vous pouvez annuler depuis « Mes réservations » si vous ne pouvez pas venir.`
+      : `Votre place est réservée pour la séance du ${short(slot)}.`,
     data: { slotId: slot.id, bookingId: booking.id },
     email: {
-      subject: `Réservation confirmée — ${short(slot)}`,
-      lines: [`Bonjour ${user.first_name},`, 'Votre place est bien réservée. À bientôt sur l\'eau !'],
+      subject: by ? `${bookedBy.first_name} vous a inscrit(e) — ${short(slot)}` : `Réservation confirmée — ${short(slot)}`,
+      lines: by ? [`Bonjour ${user.first_name},`, `${by} vous a inscrit(e) à une séance de multimono.`, 'Si vous ne pouvez pas venir, annulez depuis l\'application pour libérer la place.']
+        : [`Bonjour ${user.first_name},`, 'Votre place est bien réservée. À bientôt sur l\'eau !'],
       details: slotDetails(slot),
       buttons: [{ label: 'Voir mes réservations', url: `${config.appUrl}/#/reservations` }],
       footnote: 'Toute annulation doit être faite au minimum 24 h avant la séance.',
@@ -112,6 +115,21 @@ function removedByAdmin(user, slot) {
   });
 }
 
+function cancelledByFriend(member, by, slot) {
+  notify(member, {
+    type: 'slot_deleted',
+    title: 'Votre inscription a été annulée',
+    body: `${by.first_name} ${by.last_name}, qui vous avait inscrit(e), a annulé votre place pour la séance du ${short(slot)}.`,
+    data: { slotId: slot.id },
+    email: {
+      subject: `Inscription annulée — ${short(slot)}`,
+      lines: [`Bonjour ${member.first_name},`, `${by.first_name} ${by.last_name}, qui vous avait inscrit(e), a annulé votre place.`],
+      details: slotDetails(slot),
+      buttons: [{ label: 'Réserver un créneau', url: `${config.appUrl}/#/calendrier` }],
+    },
+  });
+}
+
 function lateCancellation(member, slot, hoursBefore) {
   for (const a of admins()) {
     notify(a, {
@@ -156,4 +174,4 @@ function passwordReset(user, token) {
   }));
 }
 
-module.exports = { notify, bookingConfirmed, reminder, slotChanged, slotDeleted, removedByAdmin, lateCancellation, licenseAlert, passwordReset };
+module.exports = { notify, bookingConfirmed, reminder, slotChanged, slotDeleted, removedByAdmin, cancelledByFriend, lateCancellation, licenseAlert, passwordReset };

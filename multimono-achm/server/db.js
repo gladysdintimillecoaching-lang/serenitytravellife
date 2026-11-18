@@ -148,6 +148,11 @@ CREATE TABLE IF NOT EXISTS outbox (
 CREATE INDEX IF NOT EXISTS idx_outbox_status ON outbox(status);
 `);
 
+// Migration : réservation faite par un autre membre (« inscrire un ami »)
+if (!db.prepare('PRAGMA table_info(bookings)').all().some((c) => c.name === 'booked_by')) {
+  db.exec('ALTER TABLE bookings ADD COLUMN booked_by INTEGER REFERENCES users(id) ON DELETE SET NULL');
+}
+
 const DEFAULT_SETTINGS = {
   club_name: 'Multimono ACHM',
   default_location: 'Club de voile ACHM',

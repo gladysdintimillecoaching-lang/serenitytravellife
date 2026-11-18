@@ -76,6 +76,28 @@ function slotRows(where, params, userId) {
     .map(serializeSlot);
 }
 
+/**
+ * Inscrits visibles par tous : prénoms seulement (membres dans l'ordre d'inscription, puis invités/groupes).
+ * friendBookingId : réservation faite par l'utilisateur pour un ami (pour pouvoir l'annuler).
+ */
+function withParticipants(slots, userId) {
+  if (!slots.length) return slots;
+  const ids = slots.map((s) => s.id);
+  const marks = ids.map(() => '?').join(',');
+  const members = db.prepare(`SELECT b.id, b.slot_id, b.user_id, b.booked_by, u.first_name FROM bookings b JOIN users u ON u.id = b.user_id
+    WHERE b.status = 'booked' AND b.slot_id IN (${marks}) ORDER BY b.created_at, b.id`).all(...ids);
+  const guests = db.prepare(`SELECT slot_id, name, places FROM slot_guests WHERE slot_id IN (${marks}) ORDER BY id`).all(...ids);
+  for (const s of slots) {
+    const mine = members.filter((m) => m.slot_id === s.id);
+    s.participants = [
+      ...mine.map((m) => ({ firstName: m.first_name, me: m.user_id === userId, friend: m.booked_by === userId && m.user_id !== userId })),
+      ...guests.filter((g) => g.slot_id === s.id).map((g) => ({ firstName: g.name, guest: true, places: g.places })),
+    ];
+    s.friendBookings = mine.filter((m) => m.booked_by === userId && m.user_id !== userId).map((m) => ({ bookingId: m.id, firstName: m.first_name }));
+  }
+  return slots;
+}
+
 function serializeSlot(s) {
   const start = utcToLocal(s.starts_at);
   const end = utcToLocal(s.ends_at);
@@ -236,14 +258,34 @@ router.put('/me/password', auth.requireAuth, wrap((req, res) => {
 router.get('/slots', auth.requireAuth, wrap((req, res) => {
   const from = date(req.query.from || todayLocal(), 'from');
   const to = date(req.query.to || addDays(from, 7), 'to');
-  const slots = slotRows('s.starts_at >= ? AND s.starts_at < ?', [localToUtc(from, '00:00'), localToUtc(addDays(to, 1), '00:00')], req.user.id);
+  const slots = withParticipants(slotRows('s.starts_at >= ? AND s.starts_at < ?', [localToUtc(from, '00:00'), localToUtc(addDays(to, 1), '00:00')], req.user.id), req.user.id);
   res.json({ slots });
 }));
 
 router.post('/slots/:id/book', auth.requireAuth, wrap((req, res) => {
   if (req.user.role === 'admin') throw new AppError(400, 'Le compte gérant ne peut pas réserver.');
-  const booking = book(req.user, Number(req.params.id));
-  res.status(201).json({ bookingId: booking.id, slot: slotRows('s.id = ?', [Number(req.params.id)], req.user.id)[0] });
+  let target = req.user;
+  let bookedBy = null;
+  if (req.body?.friendId) {
+    // Inscrire un ami : uniquement un autre membre du club
+    target = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'member'").get(Number(req.body.friendId));
+    if (!target) throw new AppError(404, 'Membre introuvable.');
+    if (target.id !== req.user.id) bookedBy = req.user;
+  }
+  const booking = book(target, Number(req.params.id), { bookedBy });
+  res.status(201).json({ bookingId: booking.id, friend: bookedBy ? target.first_name : null, slot: slotRows('s.id = ?', [Number(req.params.id)], req.user.id)[0] });
+}));
+
+// Recherche d'un ami du club (prénom + initiale du nom, rien d'autre)
+router.get('/members/search', auth.requireAuth, wrap((req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 40);
+  if (q.length < 2) return res.json({ members: [] });
+  const rows = db.prepare(`SELECT u.id, u.first_name, u.last_name, l.name AS level_name, l.color AS level_color FROM users u
+    LEFT JOIN levels l ON l.id = u.level_id
+    WHERE u.role = 'member' AND u.id != ? AND (u.first_name || ' ' || u.last_name) LIKE ?
+    ORDER BY u.first_name COLLATE NOCASE LIMIT 15`).all(req.user.id, `%${q}%`);
+  res.json({ members: rows.map((r) => ({ id: r.id, firstName: r.first_name, lastInitial: (r.last_name || '').charAt(0).toUpperCase(),
+    level: r.level_name ? { name: r.level_name, color: r.level_color } : null })) });
 }));
 
 router.get('/me/bookings', auth.requireAuth, wrap((req, res) => {
@@ -255,7 +297,13 @@ router.get('/me/bookings', auth.requireAuth, wrap((req, res) => {
   const upcoming = rows.filter((r) => r.status === 'booked').map((r) => ({
     bookingId: r.booking_id, presenceConfirmed: Boolean(r.presence_confirmed_at), slot: serializeSlot({ ...r, my_booking_id: r.booking_id }),
   }));
-  res.json({ upcoming });
+  const friends = db.prepare(`
+    SELECT b.id AS booking_id, u.first_name AS friend_name, s.*, l.name AS level_name, l.color AS level_color, ${takenSql('s')} AS booked
+    FROM bookings b JOIN slots s ON s.id = b.slot_id JOIN users u ON u.id = b.user_id LEFT JOIN levels l ON l.id = s.level_id
+    WHERE b.booked_by = ? AND b.user_id != ? AND b.status = 'booked' AND s.ends_at > ? ORDER BY s.starts_at`)
+    .all(req.user.id, req.user.id, new Date().toISOString())
+    .map((r) => ({ bookingId: r.booking_id, friendName: r.friend_name, slot: serializeSlot(r) }));
+  res.json({ upcoming, friends });
 }));
 
 router.post('/bookings/:id/cancel', auth.requireAuth, wrap((req, res) => {

@@ -232,3 +232,35 @@ test('revue : pas d\'invités sur une séance passée, planning sans séance pas
   await admin('/admin/slots/template', { method: 'POST', body: { from: addDays(todayLocal(), -14), until: addDays(todayLocal(), 1) } });
   assert.equal(db.prepare('SELECT COUNT(*) n FROM slots WHERE starts_at < ?').get(new Date().toISOString()).n, before);
 });
+
+test('inscrits visibles par tous (prénoms) et inscription d\'un ami du club', async () => {
+  const t = inHours(150);
+  await admin('/admin/slots', { method: 'POST', body: { date: t.date, start: '07:00', end: '08:00', capacity: 3 } });
+  const find = async (who) => (await who(`/slots?from=${t.date}&to=${t.date}`)).body.slots.find((x) => x.start === '07:00');
+  const slot = await find(alice);
+  // Alice inscrit Bob (ami du club)
+  const bobId = db.prepare("SELECT id FROM users WHERE email = 'bob@example.com'").get().id;
+  const r = await alice('/members/search?q=Bo');
+  assert.ok(r.body.members.some((m) => m.id === bobId && m.lastInitial === 'M' && !('email' in m)));
+  let b = await alice(`/slots/${slot.id}/book`, { method: 'POST', body: { friendId: bobId } });
+  assert.equal(b.status, 201);
+  assert.equal(b.body.friend, 'Bob');
+  assert.equal((await alice(`/slots/${slot.id}/book`, { method: 'POST', body: { friendId: bobId } })).status, 409);
+  // Un ami sans licence valide ne peut pas être inscrit
+  const carlId = db.prepare("SELECT id FROM users WHERE email = 'carl@example.com'").get().id;
+  b = await alice(`/slots/${slot.id}/book`, { method: 'POST', body: { friendId: carlId } });
+  assert.equal(b.body.code, 'friend_license');
+  // Tout le monde voit le nombre et les prénoms (pas les noms de famille)
+  const seen = await find(bob);
+  assert.deepEqual(seen.participants.map((p) => p.firstName), ['Bob']);
+  assert.ok(seen.participants[0].me);
+  assert.equal(seen.booked, 1);
+  assert.ok(!JSON.stringify(seen).includes('Marin'));
+  const notif = (await bob('/notifications')).body.items[0];
+  assert.match(notif.title, /vous a inscrit/);
+  // Alice voit et peut annuler l'inscription de son ami ; Bob est prévenu
+  const mine = (await alice('/me/bookings')).body.friends;
+  assert.equal(mine[0].friendName, 'Bob');
+  assert.equal((await alice(`/bookings/${mine[0].bookingId}/cancel`, { method: 'POST', body: {} })).body.late, false);
+  assert.match((await bob('/notifications')).body.items[0].title, /annulée/);
+});

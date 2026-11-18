@@ -7,7 +7,8 @@ Langue : français · Fuseau horaire : **Indian/Mayotte (UTC+3)**.
 
 **Participant**
 - Carte d'inscription : identité, date de naissance, téléphone, email, contact d'urgence, licence (n°, obtention, expiration), niveau, acceptation du règlement.
-- Calendrier vue **semaine** et vue **jour** : horaire, niveau requis (badge couleur), places totales et restantes. Les noms des inscrits ne sont jamais visibles.
+- Calendrier vue **semaine** et vue **jour** : horaire, niveau requis (badge couleur), places totales et restantes, **nombre d'inscrits et leurs prénoms visibles par tous** (jamais les noms de famille ni les coordonnées).
+- **Inscrire un ami du club** : un membre peut réserver une place pour un autre membre (recherche par prénom, licence de l'ami vérifiée). L'ami est prévenu par notification et email ; celui qui l'a inscrit peut annuler (l'ami est prévenu).
 - Réservation en un clic, avec confirmation à l'écran et par email. Créneau complet : « Complet », bouton grisé.
 - « Mes réservations » : séances à venir, bouton « Je confirme ma présence », bouton « Annuler ».
 - Annulation : pop-up d'avertissement « Toute annulation doit être faite au minimum 24 h avant la séance. » puis, à moins de 24 h, pop-up rouge « Annulation tardive : vous risquez de perdre ce créneau. » (« Confirmer quand même » / « Garder ma réservation »). Les annulations tardives sont signalées au gérant.

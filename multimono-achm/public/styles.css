@@ -415,3 +415,9 @@ table.table { width: 100%; border-collapse: collapse; font-size: .92rem; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Inscrits visibles par tous (prénoms) */
+.participants { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pchip { font-size: .82rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--mist); color: var(--abyss); }
+.pchip.me { background: var(--ocean); color: #fff; }
+.pchip.guest { background: var(--sand); color: var(--sand-ink); }

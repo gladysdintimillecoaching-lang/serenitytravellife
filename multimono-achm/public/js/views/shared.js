@@ -117,13 +117,11 @@ export async function licenseBlocked(message) {
   const v = await modal({
     title: 'Réservation bloquée', icon: '🪪', tone: 'danger', body: message,
     actions: [
-      { label: 'Fermer', value: null, cls: 'ghost' },
-      { label: 'Mettre à jour mon profil', value: 'profile', cls: 'secondary' },
+      { label: 'Fermer', value: null, cls: 'secondary' },
       { label: 'Renouveler ma licence', value: 'renew' },
     ],
   });
   if (v === 'renew') window.open(state.config.licenseRenewUrl, '_blank', 'noopener');
-  if (v === 'renew' || v === 'profile') location.hash = '#/profil';
 }
 
 /** Réservation en un clic */
@@ -139,6 +137,11 @@ export async function bookFlow(slotId) {
     return true;
   } catch (err) {
     if (err.data?.code === 'license') await licenseBlocked(err.message);
+    else if (err.data?.code === 'card') {
+      const v = await modal({ title: 'Carte activité nécessaire', icon: '🎟️', tone: 'warn', body: err.message,
+        actions: [{ label: 'Fermer', value: false, cls: 'secondary' }, { label: 'Voir ma carte', value: true }] });
+      if (v) location.hash = '#/profil';
+    }
     else modal({ title: err.data?.code === 'full' ? 'Séance complète' : 'Réservation impossible', icon: err.data?.code === 'full' ? '🚫' : '⚠️', tone: 'warn', body: err.message });
     return false;
   }
@@ -185,7 +188,7 @@ export function licenseBanner(user, { compact = false } = {}) {
   if (lic.status === 'expired' || lic.status === 'missing') {
     return html`<div class="banner bad" role="alert"><span class="ico">⛔</span><div>
       <strong>${lic.status === 'missing' ? 'Aucune licence enregistrée' : 'Votre licence est expirée'}</strong>
-      La réservation des séances est bloquée tant que votre licence n'est pas renouvelée et mise à jour dans votre profil.
+      La réservation des séances est bloquée tant que votre licence n'est pas ${lic.status === 'missing' ? 'transmise à Eric et enregistrée' : 'renouvelée et transmise à Eric'}.
       ${compact ? '' : html`<br>`}${renew}</div></div>`;
   }
   return html`<div class="banner ${lic.status === 'urgent' ? 'bad' : 'warn'}" role="status"><span class="ico">⏳</span><div>

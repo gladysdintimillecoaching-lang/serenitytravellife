@@ -201,14 +201,37 @@ function cardLastPaid(user, card) {
   });
 }
 
-/** Carte activité terminée (séance offerte utilisée) : notification dans l'app */
+/** Carte activité terminée (séance offerte utilisée) : notification + email */
 function cardFinished(user, card) {
+  const what = card.activity ? ` (${card.activity.name})` : '';
   notify(user, {
     type: 'card',
     title: 'Votre carte activité est terminée 🎟️',
-    body: `Vous avez utilisé vos ${card.total} séances${card.activity ? ` (${card.activity.name})` : ''}, dont la séance offerte. Pensez à reprendre une nouvelle carte auprès d'Eric pour continuer à naviguer !`,
+    body: `Vous avez utilisé vos ${card.total} séances${what}, dont la séance offerte. Pensez à reprendre une nouvelle carte auprès d'Eric pour continuer à naviguer !`,
     data: { cardId: card.id },
+    email: {
+      subject: 'Votre carte activité est terminée — on continue ensemble ? ⛵',
+      highlight: { label: `🎟️ ${card.total}/${card.total} séances utilisées`, color: '#E3F4F7', ink: '#0B3954' },
+      lines: [
+        `Bonjour ${user.first_name},`,
+        `Vous venez d'utiliser votre séance offerte${what} : votre carte de ${card.paid} séances + ${card.free} offerte est terminée. Bravo pour toutes ces navigations ! 👏`,
+        'Pour continuer à réserver vos séances, demandez une nouvelle carte à Eric : la réservation en ligne sera de nouveau possible dès qu\'elle sera créée.',
+        `À très vite sur l'eau ! L'équipe ${getSettings().club_name}`,
+      ],
+      details: card.uses.map((u) => [`Séance ${u.n}${u.offered ? ' 🎁' : ''}`, `${new Date(`${u.date}T12:00:00Z`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}${u.label ? ` · ${u.label}` : ''}`]),
+      buttons: [{ label: 'Voir ma carte', url: `${config.appUrl}/#/profil` }],
+    },
   });
+}
+
+function accessCode(user, code) {
+  queueEmail(user.email, 'Votre code d\'accès à l\'application du club', renderEmail({
+    title: 'Votre nouveau code d\'accès',
+    highlight: { label: code, color: '#E3F4F7', ink: '#0B3954' },
+    lines: [`Bonjour ${user.first_name},`, 'Eric a réinitialisé votre accès à l\'application. Pour choisir un nouveau mot de passe, ouvrez l\'application, touchez « Première connexion / code d\'accès » et saisissez ce code (valable 7 jours).',
+      `Votre identifiant : ${user.login}`],
+    buttons: [{ label: 'Choisir mon mot de passe', url: `${config.appUrl}/#/premiere-connexion` }],
+  }));
 }
 
 function lateCancellation(member, slot, hoursBefore) {
@@ -234,14 +257,13 @@ function licenseAlert(user, daysLeft, expires) {
   notify(user, {
     type: 'license',
     title: daysLeft <= 7 ? 'Votre licence expire très bientôt ⏳' : 'Votre licence expire bientôt',
-    body: `Votre licence expire le ${dateFr} (dans ${daysLeft} jour${daysLeft > 1 ? 's' : ''}). Pensez à la renouveler pour continuer à réserver.`,
+    body: `Votre licence expire le ${dateFr} (dans ${daysLeft} jour${daysLeft > 1 ? 's' : ''}). Pensez à la renouveler et à la transmettre à Eric pour continuer à réserver.`,
     data: { license: true },
     email: {
       subject: `Votre licence expire dans ${daysLeft} jour${daysLeft > 1 ? 's' : ''}`,
-      lines: [`Bonjour ${user.first_name},`, `Votre licence expire le ${dateFr}.`, 'Sans licence valide, la réservation des séances sera bloquée. Après renouvellement, mettez à jour vos informations dans votre profil.'],
+      lines: [`Bonjour ${user.first_name},`, `Votre licence expire le ${dateFr}.`, 'Sans licence valide, la réservation des séances sera bloquée. Après renouvellement, transmettez votre nouvelle licence à Eric : il mettra votre profil à jour.'],
       buttons: [
         { label: 'Renouveler ma licence', url, color: '#0e7490' },
-        { label: 'Mettre à jour mon profil', url: `${config.appUrl}/#/profil`, color: '#0b3954' },
       ],
     },
   });
@@ -255,4 +277,4 @@ function passwordReset(user, token) {
   }));
 }
 
-module.exports = { notify, bookingConfirmed, reminder, slotChanged, slotDeleted, removedByAdmin, cancelledByFriend, birthday, rewardPromotion, cardLastPaid, cardFinished, lateCancellation, licenseAlert, passwordReset };
+module.exports = { notify, bookingConfirmed, reminder, slotChanged, slotDeleted, removedByAdmin, cancelledByFriend, birthday, rewardPromotion, cardLastPaid, cardFinished, accessCode, lateCancellation, licenseAlert, passwordReset };

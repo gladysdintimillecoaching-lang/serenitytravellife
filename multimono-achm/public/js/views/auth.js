@@ -21,13 +21,18 @@ export async function login(root) {
     <div class="auth-wrap">
       ${hero('Réservez vos sessions de multimono en un clic 🌊')}
       <form class="card form" id="f" novalidate>
-        <div class="field"><label for="login">Email (ou identifiant gérant)</label>
-          <input id="login" name="login" type="text" autocomplete="username" inputmode="email" autocapitalize="none" required></div>
+        <div class="field"><label for="login">Email ou identifiant</label>
+          <input id="login" name="login" type="text" autocomplete="username" inputmode="email" autocapitalize="none" placeholder="ex. : prenom.nom ou votre email" required></div>
         <div class="field"><label for="password">Mot de passe</label>
           <input id="password" name="password" type="password" autocomplete="current-password" required></div>
         <button class="btn lg block" type="submit">Se connecter</button>
         <a class="center small" href="#/mot-de-passe-oublie">Mot de passe oublié ?</a>
       </form>
+      <div class="card center" style="border:2px solid var(--turquoise)">
+        <h2>Déjà membre du club ?</h2>
+        <p class="muted">Première fois dans l'application, ou Eric vous a donné un code d'accès : activez votre compte et choisissez votre mot de passe.</p>
+        <a class="btn lg block" href="#/premiere-connexion">Première connexion / code d'accès</a>
+      </div>
       <div class="card sand center">
         <h2>Nouveau au club ?</h2>
         <p class="muted">Remplissez votre carte d'inscription en 2 minutes.</p>
@@ -38,7 +43,19 @@ export async function login(root) {
   f.addEventListener('submit', (e) => {
     e.preventDefault();
     busy(f.querySelector('[type=submit]'), async () => {
-      try { afterLogin((await api('/auth/login', { method: 'POST', body: formData(f) })).user); } catch (err) { showError(f, err); }
+      const body = formData(f);
+      try { afterLogin((await api('/auth/login', { method: 'POST', body })).user); } catch (err) {
+        if (err.status === 300 && err.data?.choose) {
+          // Email partagé par plusieurs membres d'une famille : lequel se connecte ?
+          const id = await modal({ title: 'Qui se connecte ?', icon: '👨‍👩‍👧', body: 'Plusieurs membres utilisent cet email.',
+            actions: [{ label: 'Annuler', value: null, cls: 'ghost' }, ...err.data.choose.map((c) => ({ label: `${c.firstName} ${c.lastName}`, value: c.id, cls: 'secondary' }))] });
+          if (id) { try { afterLogin((await api('/auth/login', { method: 'POST', body: { ...body, userId: id } })).user); } catch (e2) { showError(f, e2); } }
+        } else if (err.data?.code === 'pending') {
+          const go2 = await modal({ title: 'Compte à activer', icon: '🔑', body: err.message,
+            actions: [{ label: 'Fermer', value: false, cls: 'secondary' }, { label: 'Première connexion', value: true }] });
+          if (go2) location.hash = '#/premiere-connexion';
+        } else showError(f, err);
+      }
     });
   });
 }
@@ -69,13 +86,7 @@ export async function register(root) {
         </fieldset>
 
         <fieldset data-step="1" class="form hidden">
-          <legend>🪪 Licence</legend>
-          <div class="field"><label for="licenseNumber">Numéro de licence</label><input id="licenseNumber" name="licenseNumber" required></div>
-          <div class="form-grid two">
-            <div class="field"><label for="licenseObtained">Date d'obtention</label><input id="licenseObtained" name="licenseObtained" type="date" max="${t}" required></div>
-            <div class="field"><label for="licenseExpires">Date d'expiration</label><input id="licenseExpires" name="licenseExpires" type="date" required></div>
-          </div>
-          <legend style="margin-top:6px">⛵ Niveau de navigation</legend>
+          <legend>⛵ Niveau de navigation</legend>
           <div class="field">
             <label for="levelId">Votre niveau</label>
             <select id="levelId" name="levelId" required>
@@ -84,6 +95,7 @@ export async function register(root) {
             </select>
             <div class="chips" aria-hidden="true">${levels.map((l) => levelBadge(l))}</div>
           </div>
+          <div class="banner info" style="margin:0"><span class="ico">🪪</span><div><strong>Votre licence</strong>Elle est enregistrée par Eric : transmettez-lui votre licence après l'inscription. Vous pourrez réserver dès qu'elle sera saisie.</div></div>
         </fieldset>
 
         <fieldset data-step="2" class="form hidden">
@@ -126,9 +138,6 @@ export async function register(root) {
         return false;
       }
     }
-    if (step === 1 && f.licenseExpires.value < f.licenseObtained.value) {
-      showError(f, new Error('La date d\'expiration doit être postérieure à la date d\'obtention.')); return false;
-    }
     return true;
   };
   $('#prev', f).addEventListener('click', () => { step--; show(); });
@@ -145,7 +154,11 @@ export async function register(root) {
         const { user } = await api('/auth/register', { method: 'POST', body: data });
         toast(`Bienvenue à bord, ${user.firstName} ! ⛵`, 'ok');
         afterLogin(user);
-      } catch (err) { showError(f, err); }
+      } catch (err) {
+        if (err.data?.code === 'claimable') {
+          if (await modal({ title: 'Vous êtes déjà membre !', icon: '⛵', body: err.message, actions: [{ label: 'Fermer', value: false, cls: 'secondary' }, { label: 'Activer mon compte', value: true }] })) location.hash = '#/premiere-connexion';
+        } else showError(f, err);
+      }
     });
   });
 }
@@ -261,4 +274,77 @@ export async function emailAction(root, token) {
     const ok = await cancelFlow(s.startsAt, (force) => api('/email-action', { method: 'POST', body: { token, force } }));
     if (ok) done('🌊', 'Réservation annulée', 'Votre place a été libérée pour un autre membre.');
   });
+}
+
+/** Première connexion : membre importé (nom + prénom + téléphone) ou code d'accès donné par Eric */
+export async function firstLogin(root) {
+  let mode = 'name';
+  const draw = () => {
+    mount(root, html`
+      <div class="auth-wrap">
+        ${hero('Première connexion')}
+        <form class="card form" id="find" novalidate>
+          <div class="segmented" role="group" aria-label="Comment activer">
+            <button type="button" data-m="name" aria-pressed="${mode === 'name'}">Je suis membre</button>
+            <button type="button" data-m="code" aria-pressed="${mode === 'code'}">J'ai un code</button>
+          </div>
+          ${mode === 'name' ? html`
+            <p class="muted" style="margin:0">Indiquez votre nom, votre prénom et le téléphone donnés au club, tels qu'ils figurent sur la liste des membres.</p>
+            <div class="form-grid two">
+              <div class="field"><label for="lastName">Nom</label><input id="lastName" name="lastName" autocomplete="family-name" required></div>
+              <div class="field"><label for="firstName">Prénom</label><input id="firstName" name="firstName" autocomplete="given-name" required></div>
+            </div>
+            <div class="field"><label for="phone">Téléphone</label><input id="phone" name="phone" type="tel" autocomplete="tel" required>
+              <span class="hint">Pour un enfant, c'est souvent le téléphone d'un parent.</span></div>`
+    : html`
+            <p class="muted" style="margin:0">Eric vous a donné un code d'accès (par exemple après un mot de passe perdu).</p>
+            <div class="field"><label for="code">Code d'accès</label><input id="code" name="code" autocapitalize="characters" autocomplete="one-time-code" placeholder="ABCD-EFGH" style="text-transform:uppercase;letter-spacing:.1em" required></div>`}
+          <button class="btn lg block" type="submit">Continuer</button>
+          <a class="center small" href="#/connexion">Retour à la connexion</a>
+        </form>
+      </div>`);
+    $$('[data-m]', root).forEach((b) => b.addEventListener('click', () => { mode = b.dataset.m; draw(); }));
+    const f = $('#find', root);
+    f.addEventListener('submit', (e) => {
+      e.preventDefault();
+      busy(f.querySelector('[type=submit]'), async () => {
+        try { step2(await api('/auth/claim', { method: 'POST', body: formData(f) })); } catch (err) { showError(f, err); }
+      });
+    });
+  };
+  const step2 = (c) => {
+    mount(root, html`
+      <div class="auth-wrap">
+        ${hero(`Bonjour ${c.firstName} ! 👋`)}
+        <form class="card form" id="act" novalidate>
+          <div class="banner info" style="margin:0"><span class="ico">🪪</span><div><strong>Votre identifiant : ${c.login}</strong>
+            Vous pourrez vous connecter avec cet identifiant ou avec votre email. Un même email peut servir à plusieurs membres d'une famille.</div></div>
+          <div class="field"><label for="email">Votre email</label><input id="email" name="email" type="email" autocomplete="email" value="${c.email}" required>
+            <span class="hint">Pour recevoir les confirmations, les rappels 24 h avant les séances et les nouvelles du club.</span></div>
+          <div class="field"><label for="password">Choisissez un mot de passe</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required>
+            <span class="hint">8 caractères minimum.</span></div>
+          <div class="field"><label for="password2">Confirmez le mot de passe</label><input id="password2" name="password2" type="password" autocomplete="new-password" required></div>
+          ${c.needsRules ? html`<label class="check"><input type="checkbox" name="acceptRules"><span>J'ai lu et j'accepte le <a href="#" id="show-rules">règlement du club</a>.</span></label>` : ''}
+          <button class="btn lg block" type="submit">Activer mon compte</button>
+        </form>
+      </div>`);
+    $('#show-rules', root)?.addEventListener('click', (e) => { e.preventDefault(); showRules(); });
+    const f = $('#act', root);
+    f.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const d = formData(f);
+      if (d.password !== d.password2) return showError(f, new Error('Les deux mots de passe ne correspondent pas.'));
+      if (c.needsRules && !d.acceptRules) return showError(f, new Error('Vous devez accepter le règlement du club.'));
+      busy(f.querySelector('[type=submit]'), async () => {
+        try {
+          const { user } = await api('/auth/activate', { method: 'POST', body: { ...d, token: c.token } });
+          toast(`Bienvenue ${user.firstName} ! Votre compte est activé ⛵`, 'ok');
+          state.user = user;
+          refreshUnread();
+          location.hash = user.profileComplete ? '#/calendrier' : '#/profil';
+        } catch (err) { showError(f, err); }
+      });
+    });
+  };
+  draw();
 }

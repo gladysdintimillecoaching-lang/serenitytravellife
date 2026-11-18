@@ -31,10 +31,15 @@ RÔLES
 
 CARTE D'INSCRIPTION DU PARTICIPANT (formulaire en 3 étapes avec barre de progression)
 - Étape 1 « Vos coordonnées » : nom, prénom, date de naissance, téléphone, email ; contact d'urgence (nom + téléphone).
-- Étape 2 « Licence et niveau » : numéro de licence, date d'obtention, date d'expiration (doit être après l'obtention), niveau de navigation choisi dans la liste des niveaux définis par Eric (afficher les niveaux avec leur couleur).
+- Étape 2 « Niveau » : niveau de navigation choisi dans la liste des niveaux définis par Eric (afficher les niveaux avec leur couleur). Encadré : « Votre licence est enregistrée par Eric : transmettez-lui votre licence après l'inscription. » LA LICENCE (numéro, date d'obtention, date d'expiration) EST SAISIE UNIQUEMENT PAR ERIC, dans la fiche du membre ; le membre la voit en lecture seule dans son profil.
+- Chaque membre reçoit un IDENTIFIANT personnel « prenom.nom » (unique, suffixe 2, 3… si besoin). Connexion avec l'identifiant OU l'email. Un même email peut être partagé par plusieurs membres d'une famille : si plusieurs comptes de cet email ont le même mot de passe, demander « Qui se connecte ? ». « Mot de passe oublié » envoie un lien par membre de la famille.
 - Étape 3 « Votre compte » : mot de passe (8 caractères minimum) + confirmation, case obligatoire « J'ai lu et j'accepte le règlement du club » avec un lien qui ouvre le règlement dans une fenêtre.
 - Enregistrer la date d'acceptation du règlement.
-- Page de connexion : « Email (ou identifiant gérant) » + mot de passe, lien « Mot de passe oublié ? » (email avec lien valable 1 heure), et une carte sable « Nouveau au club ? Créer ma carte d'inscription ».
+- MEMBRES EXISTANTS : Eric importe la liste du club (page « Membres › Importer » : copier-coller ou fichier CSV, une ligne par membre « catégorie ; nom ; prénom ; téléphone », aperçu avant import, doublons nom+prénom+téléphone ignorés). Ces comptes sont « à activer » (sans email ni mot de passe) et gardent leur catégorie (Opti Loisir, Multimono, Planche à voile (PAV), PAV Juniors, Multi supports, École de sport) ; les précisions comme « (NR) » ou « voir licence » deviennent une note privée d'Eric.
+- Page « Première connexion / code d'accès » : (a) « Je suis membre » : nom + prénom + téléphone (comparaison sans accents ni majuscules, sur les 9 derniers chiffres du téléphone ; uniquement pour un compte importé jamais activé), ou (b) « J'ai un code » : le code donné par Eric. Ensuite : afficher l'identifiant, demander email, mot de passe (+ confirmation) et l'acceptation du règlement si pas encore acceptée, puis connecter et envoyer vers le profil si la carte d'inscription est incomplète (bandeau « Complétez votre carte d'inscription »). L'inscription d'une personne déjà présente dans la liste importée est refusée avec un lien vers « Première connexion ».
+- AIDER UN MEMBRE QUI A PERDU SON MOT DE PASSE : dans la fiche membre, carte « 🔑 Accès au compte » (identifiant, email, statut) et bouton « Effacer le mot de passe et créer un code d'accès » : efface le mot de passe, ferme ses connexions, crée un code lisible XXXX-XXXX (sans 0/O/1/I), valable 7 jours, à usage unique, stocké haché ; il est affiché en grand à Eric pour le donner par téléphone/SMS, et envoyé par email si le membre en a un.
+- Fiche membre côté Eric : formulaire « Fiche & licence » (nom, prénom, téléphone, email, catégorie, note privée, numéro et dates de licence).
+- Page de connexion : « Email ou identifiant » + mot de passe, carte « Déjà membre du club ? → Première connexion / code d'accès », lien « Mot de passe oublié ? » (email avec lien valable 1 heure), et une carte sable « Nouveau au club ? Créer ma carte d'inscription ».
 
 NIVEAUX DE NAVIGATION
 - Table des niveaux : nom, couleur (code hex), ordre. Niveaux de départ : Découverte #38BDF8, Initié #14B8A6, Confirmé #F59E0B, Expert #EF4444.
@@ -111,8 +116,9 @@ RÉSERVATION EN UN CLIC
   • pas de double réservation de la même séance ;
   • pas de dépassement du nombre de places (les places prises = réservations actives + places réservées pour des invités, voir message 4) ;
   • LICENCE : la réservation est bloquée avec une fenêtre « Réservation bloquée », avec deux messages distincts :
-    – aucune licence enregistrée : « Aucune licence enregistrée. Ajoutez votre numéro et la date d'expiration de votre licence dans votre profil pour pouvoir réserver. »
-    – licence expirée à la DATE DE LA SÉANCE : « Votre licence ne sera plus valide à la date de cette séance. Pour des raisons d'assurance, la réservation est bloquée : renouvelez votre licence puis mettez à jour votre profil. »
+    – aucune licence enregistrée : « Votre licence n'est pas encore enregistrée. Transmettez votre licence à Eric : il l'enregistrera et vous pourrez réserver. »
+    – licence expirée à la DATE DE LA SÉANCE : « Votre licence ne sera plus valide à la date de cette séance. Pour des raisons d'assurance, la réservation est bloquée : renouvelez votre licence et transmettez-la à Eric, qui mettra votre profil à jour. »
+  • CARTE ACTIVITÉ OBLIGATOIRE (option « Carte activité obligatoire pour réserver » dans Réglages, activée par défaut) : séances disponibles = séances restantes des cartes valables pour l'activité − réservations à venir pas encore validées ; si 0 : fenêtre « Carte activité nécessaire » (« Vous n'avez pas de carte activité en cours… Demandez une carte (5 séances + 1 offerte) à Eric » ou « … les séances restantes sont déjà réservées »), bouton « Voir ma carte ». Eric peut toujours inscrire quelqu'un lui-même.
     Boutons : « Renouveler ma licence » (ouvre le lien des Réglages) et « Mettre à jour mon profil ».
   • si l'option « Bloquer sous le niveau requis » est active : le niveau du participant doit être au moins égal (selon l'ordre des niveaux) au niveau requis.
 - Le compte gérant ne réserve pas pour lui-même.
@@ -219,7 +225,8 @@ CARTES ACTIVITÉ (5 séances + 1 offerte = 6)
   La séance est décomptée de la plus ancienne carte en cours valable pour l'activité (une carte « toutes activités » vaut pour tout). Sans carte en cours : message « Prénom n'a pas de carte en cours. Créez d'abord une nouvelle carte. »
 - Affichage de la carte (membre dans son profil « 🎟️ Ma carte activité », Eric dans la fiche membre) : 6 cases, numérotées 1 à 5 puis 🎁 pour l'offerte, avec la DATE utilisée dans chaque case remplie, le nombre de séances restantes, « Il reste la séance offerte 🎁 » après la 5e, le détail des séances (date + activité), et les cartes terminées en historique. Eric peut annuler une validation (petit ×). La liste des membres affiche « 🎟️ N restantes ».
 - À la 5ème séance validée : notification + email, UNE seule fois par carte (même si une validation est annulée puis refaite). Objet « Votre 5ème séance est utilisée — il vous en reste une offerte 🎁 », pastille « 🎁 1 séance offerte », texte : « Vous venez d'utiliser votre 5ème séance (activité), pas de panique ! Il vous en reste une offerte 🎁 Profitez-en bien sur l'eau ! Pour continuer à naviguer après cette séance offerte, pensez à reprendre une nouvelle carte auprès d'Eric. », liste des 5 séances avec leurs dates, boutons « Voir ma carte » et « Réserver ma séance offerte ».
-- À la 6ème : notification « Votre carte activité est terminée 🎟️ … pensez à reprendre une nouvelle carte auprès d'Eric ».
+- À la 6ème : notification + email « Votre carte activité est terminée — on continue ensemble ? ⛵ » (liste des 6 dates, invitation à reprendre une carte auprès d'Eric).
+- Plusieurs cartes en cours : la séance est décomptée de la carte LA PLUS ANCIENNE valable pour l'activité.
 
 RÉCOMPENSES (8 couleurs de progression, attribuées à la main par Eric)
 - Ordre : Blanc #F8FAFC, Jaune #FACC15, Jaune-orange (moitié #FACC15 / moitié #F97316), Orange #F97316, Orange-vert (moitié #F97316 / moitié #16A34A), Vert #16A34A, Bleu #2563EB, Violet #7C3AED. Les couleurs doubles s'affichent moitié-moitié, comme une ceinture.

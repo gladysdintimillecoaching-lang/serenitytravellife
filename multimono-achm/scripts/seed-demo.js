@@ -2,6 +2,8 @@
 // Données de démonstration : node scripts/seed-demo.js  (à n'utiliser que sur une base de test)
 const { db } = require('../server/db');
 const { hashPassword, ensureAdmin } = require('../server/auth');
+const { makeLogin } = require('../server/accounts');
+const cards = require('../server/cards');
 const { todayLocal, addDays, localToUtc, weekdayIndex } = require('../server/time');
 
 ensureAdmin();
@@ -12,11 +14,16 @@ const people = [
   ['Thomas', 'Payet', 300], ['Inès', 'Houmadi', 150], ['Kévin', 'Dupont', 90], ['Sarah', 'Ahamada', 400],
 ];
 const ins = db.prepare(`INSERT OR IGNORE INTO users (role, email, password_hash, first_name, last_name, birth_date, phone,
-  emergency_name, emergency_phone, license_number, license_obtained, license_expires, level_id, rules_accepted_at)
-  VALUES ('member', ?, ?, ?, ?, '1992-04-12', '0639 12 34 56', 'Contact urgence', '0639 65 43 21', ?, ?, ?, ?, ?)`);
+  emergency_name, emergency_phone, license_number, license_obtained, license_expires, level_id, rules_accepted_at, login, activated_at)
+  VALUES ('member', ?, ?, ?, ?, '1992-04-12', '0639 12 34 56', 'Contact urgence', '0639 65 43 21', ?, ?, ?, ?, ?, ?, ?)`);
 const pwd = hashPassword('demo1234');
 people.forEach(([f, l, days], i) => ins.run(`${f.toLowerCase()}@demo.fr`.normalize('NFD').replace(/[̀-ͯ]/g, ''), pwd, f, l,
-  `976-${1000 + i}`, addDays(today, days - 365), addDays(today, days), levels[i % levels.length], new Date().toISOString()));
+  `976-${1000 + i}`, addDays(today, days - 365), addDays(today, days), levels[i % levels.length], new Date().toISOString(),
+  makeLogin(f, l), new Date().toISOString()));
+// Une carte « toutes activités » par membre de démonstration (la carte est obligatoire pour réserver)
+for (const u of db.prepare("SELECT id FROM users WHERE role = 'member'").all()) {
+  if (!cards.cardsOf(u.id).length) cards.createCard(u.id);
+}
 
 const slotIns = db.prepare('INSERT INTO slots (starts_at, ends_at, capacity, level_id, activity_id, label, location) VALUES (?, ?, ?, ?, ?, ?, ?)');
 const users = db.prepare("SELECT id FROM users WHERE role = 'member'").all().map((u) => u.id);

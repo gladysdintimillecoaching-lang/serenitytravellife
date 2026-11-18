@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY,
   role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('member','admin')),
   login TEXT UNIQUE,
-  email TEXT NOT NULL UNIQUE COLLATE NOCASE,
-  password_hash TEXT NOT NULL,
+  email TEXT COLLATE NOCASE,
+  password_hash TEXT NOT NULL DEFAULT '',
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL DEFAULT '',
   birth_date TEXT,
@@ -161,6 +161,40 @@ if (!db.prepare('PRAGMA table_info(bookings)').all().some((c) => c.name === 'boo
   db.exec('ALTER TABLE bookings ADD COLUMN booked_by INTEGER REFERENCES users(id) ON DELETE SET NULL');
 }
 
+// Migration : email partageable (familles) et facultatif (membres importés sans email).
+// SQLite ne sait pas retirer une contrainte : on reconstruit la table (procédure officielle).
+const emailCol = db.prepare('PRAGMA table_info(users)').all().find((c) => c.name === 'email');
+const emailUnique = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'").get().sql.includes('NOT NULL UNIQUE');
+if (emailCol && emailUnique) {
+  db.pragma('foreign_keys = OFF');
+  db.transaction(() => {
+    const cols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+    const createSql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'").get().sql
+      .replace('email TEXT NOT NULL UNIQUE COLLATE NOCASE', 'email TEXT COLLATE NOCASE')
+      .replace('password_hash TEXT NOT NULL,', "password_hash TEXT NOT NULL DEFAULT '',")
+      .replace(/CREATE TABLE "?users"?/, 'CREATE TABLE users_new');
+    db.exec(createSql);
+    db.exec(`INSERT INTO users_new (${cols.join(',')}) SELECT ${cols.join(',')} FROM users`);
+    db.exec('DROP TABLE users');
+    db.exec('ALTER TABLE users_new RENAME TO users');
+    if (db.pragma('foreign_key_check').length) throw new Error('Migration users : clés étrangères invalides');
+  })();
+  db.pragma('foreign_keys = ON');
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
+
+// Migration : comptes importés / à activer, catégorie, note du gérant, code d'accès
+{
+  const ucols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+  const add = (name, def) => { if (!ucols.includes(name)) db.exec(`ALTER TABLE users ADD COLUMN ${name} ${def}`); };
+  add('account_status', "TEXT NOT NULL DEFAULT 'active'"); // 'active' | 'pending' (à activer)
+  add('activated_at', 'TEXT');
+  add('category', 'TEXT');
+  add('admin_note', 'TEXT');
+  add('access_code_hash', 'TEXT');
+  add('access_code_expires', 'TEXT');
+}
+
 // Migration : couleur de récompense (0 = Blanc … 7 = Violet)
 if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'reward_rank')) {
   db.exec('ALTER TABLE users ADD COLUMN reward_rank INTEGER NOT NULL DEFAULT 0');
@@ -218,6 +252,7 @@ const DEFAULT_SETTINGS = {
   default_location: 'Club de voile ACHM',
   license_renew_url: 'https://www.ffvoile.fr/ffv/web/licence/',
   enforce_level: '0',
+  require_card: '1', // réservation possible seulement avec une carte activité ayant des séances disponibles
   // Planning habituel de l'ACHM (repris de la feuille « Inscription Multimono ») — 0 = lundi
   weekly_template: JSON.stringify([
     { weekday: 5, start: '12:00', end: '14:30', capacity: 6 },

@@ -55,7 +55,23 @@ function activeCard(userId, activityId) {
   return db.prepare(`SELECT c.* FROM cards c WHERE c.user_id = ?
       AND (? IS NULL OR c.activity_id IS NULL OR c.activity_id = ?)
       AND (SELECT COUNT(*) FROM card_uses u WHERE u.card_id = c.id) < c.paid + c.free
-    ORDER BY (c.activity_id IS NULL), c.id LIMIT 1`).get(userId, activityId ?? null, activityId ?? null);
+    ORDER BY c.id LIMIT 1`).get(userId, activityId ?? null, activityId ?? null); // la plus ancienne d'abord
+}
+
+/**
+ * Séances encore réservables pour une activité : séances restantes des cartes valables,
+ * moins les réservations à venir pas encore validées (elles sont « réservées » sur la carte).
+ */
+function bookableFor(userId, activityId) {
+  const valid = cardsOf(userId).filter((c) => !c.finished && (!c.activity || c.activity.id === activityId));
+  const remaining = valid.reduce((a, c) => a + c.remaining, 0);
+  const anyAll = valid.some((c) => !c.activity);
+  const pending = db.prepare(`SELECT COUNT(*) n FROM bookings b JOIN slots s ON s.id = b.slot_id
+      WHERE b.user_id = ? AND b.status = 'booked' AND s.ends_at > ?
+        AND (? = 1 OR s.activity_id IS ?)
+        AND NOT EXISTS (SELECT 1 FROM card_uses u JOIN cards c ON c.id = u.card_id WHERE c.user_id = b.user_id AND u.slot_id = s.id)`)
+    .get(userId, new Date().toISOString(), anyAll ? 1 : 0, activityId ?? null).n;
+  return { remaining, pending, available: remaining - pending };
 }
 
 /** Résumé pour les listes : séances restantes sur les cartes en cours */
@@ -133,4 +149,4 @@ function slotStatus(userId, slotId, activityId) {
   return { validated, card: card ? serialize(card) : null };
 }
 
-module.exports = { PAID, FREE, CardError, cardsOf, summary, createCard, validateAndNotify, undoUse, setCardActivity, deleteCard, slotStatus };
+module.exports = { PAID, FREE, CardError, cardsOf, summary, bookableFor, createCard, validateAndNotify, undoUse, setCardActivity, deleteCard, slotStatus };

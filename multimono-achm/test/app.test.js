@@ -17,8 +17,13 @@ const scheduler = require('../server/scheduler');
 const { utcToLocal, todayLocal, addDays } = require('../server/time');
 
 let server; let base;
+// La licence est saisie par Eric : raccourci de test
+const setLicense = (email, expires) => db.prepare("UPDATE users SET license_number = 'L1', license_obtained = '2020-01-01', license_expires = ? WHERE email = ?").run(expires, email);
+
 before(async () => {
   ensureAdmin();
+  // La carte obligatoire est testée à part (test « cartes obligatoires ») ; les autres tests réservent sans carte
+  db.prepare("UPDATE settings SET value = '0' WHERE key = 'require_card'").run();
   server = createApp().listen(0);
   await new Promise((r) => server.once('listening', r));
   base = `http://127.0.0.1:${server.address().port}/api`;
@@ -58,9 +63,12 @@ test('inscription : règlement obligatoire puis création du compte', async () =
   assert.equal(r.status, 400);
   r = await alice('/auth/register', { method: 'POST', body: member('alice@example.com') });
   assert.equal(r.status, 201);
-  assert.equal(r.body.user.license.status, 'valid');
+  assert.equal(r.body.user.license.status, 'missing'); // la licence est saisie par Eric
+  assert.equal(r.body.user.login, 'lea.marin');
   r = await bob('/auth/register', { method: 'POST', body: member('bob@example.com', { firstName: 'Bob' }) });
   assert.equal(r.status, 201);
+  setLicense('alice@example.com', addDays(todayLocal(), 200));
+  setLicense('bob@example.com', addDays(todayLocal(), 200));
 });
 
 test('connexion gérant par identifiant et accès protégé', async () => {
@@ -117,7 +125,10 @@ test('annulation à moins de 24 h : confirmation requise puis signalée au géra
 
 test('licence expirée : réservation bloquée', async () => {
   const carl = client();
-  await carl('/auth/register', { method: 'POST', body: member('carl@example.com', { licenseObtained: '2020-01-01', licenseExpires: addDays(todayLocal(), -1) }) });
+  await carl('/auth/register', { method: 'POST', body: member('carl@example.com', { firstName: 'Carl' }) });
+  let r0 = await carl(`/slots/${slotA.id}/book`, { method: 'POST' });
+  assert.match(r0.body.error, /transmettez votre licence à Eric/i);
+  setLicense('carl@example.com', addDays(todayLocal(), -1));
   const r = await carl(`/slots/${slotA.id}/book`, { method: 'POST' });
   assert.equal(r.status, 403);
   assert.equal(r.body.code, 'license');
@@ -179,7 +190,7 @@ test('liste des membres filtrée et export CSV', async () => {
   let r = await admin('/admin/members?license=expired');
   assert.deepEqual(r.body.members.map((m) => m.email), ['carl@example.com']);
   r = await admin('/admin/members.csv');
-  assert.ok(r.body.replace(/^\uFEFF/, '').startsWith('Nom;Prénom'));
+  assert.ok(r.body.replace(/^\uFEFF/, '').startsWith('Catégorie;Identifiant;Compte;Nom;Prénom'));
   assert.ok(r.body.includes('alice@example.com'));
   assert.equal((await alice('/admin/members.csv')).status, 403);
 });
@@ -373,4 +384,86 @@ test('cartes activité : 5 + 1 offerte, dates, email à la 5e séance, activité
   assert.equal(mine.uses[5].offered, true);
   assert.equal((await admin(`/admin/members/${bobId}/card-uses`, { method: 'POST', body: {} })).status, 409);
   assert.equal((await bob(`/admin/members/${bobId}/cards`, { method: 'POST', body: {} })).status, 403);
+});
+
+test('membres existants : import, première connexion, email partagé, code d\'accès donné par Eric', async () => {
+  const text = [
+    'OPTI LOISIR\tSIMON\tARTHUR\t0611765837',
+    'OPTI LOISIR\tSIMON\tJEANNE\t0611765837',
+    'MULTIMONO ( NR )\tBOBIN\tLYDIE\t0786844351',
+    'MULTIMONO\t\t\t',
+    'OPTI LOISIR\tSIMON\tARTHUR\t0611765837', // doublon
+  ].join('\n');
+  let r = await admin('/admin/members/import', { method: 'POST', body: { text, preview: true } });
+  assert.equal(r.body.total, 4);
+  r = await admin('/admin/members/import', { method: 'POST', body: { text } });
+  assert.deepEqual(r.body, { created: 3, skipped: 1 });
+  const lydie = db.prepare("SELECT * FROM users WHERE last_name = 'BOBIN'").get();
+  assert.deepEqual([lydie.category, lydie.admin_note, lydie.account_status, lydie.first_name], ['Multimono', 'NR', 'pending', 'Lydie']);
+  assert.deepEqual((await admin('/admin/members?status=pending&category=Opti%20Loisir')).body.members.map((m) => m.firstName).sort(), ['Arthur', 'Jeanne']);
+  // Pas de connexion tant que le compte n'est pas activé
+  assert.equal((await alice('/auth/login', { method: 'POST', body: { login: 'arthur.simon', password: 'x' } })).body.code, 'pending');
+  // Première connexion : nom + prénom + téléphone (accents/majuscules/indicatif ignorés)
+  const fam = client();
+  assert.equal((await fam('/auth/claim', { method: 'POST', body: { lastName: 'Simon', firstName: 'Arthur', phone: '0611765800' } })).status, 404);
+  r = await fam('/auth/claim', { method: 'POST', body: { lastName: 'simon', firstName: 'arthur', phone: '+262 6 11 76 58 37' } });
+  assert.equal(r.body.login, 'arthur.simon');
+  r = await fam('/auth/activate', { method: 'POST', body: { token: r.body.token, email: 'famille.simon@example.com', password: 'motdepasse1', acceptRules: true } });
+  assert.equal(r.body.user.accountStatus, 'active');
+  // La sœur active avec le même email (famille)
+  const fam2 = client();
+  r = await fam2('/auth/claim', { method: 'POST', body: { lastName: 'SIMON', firstName: 'Jeanne', phone: '0611765837' } });
+  await fam2('/auth/activate', { method: 'POST', body: { token: r.body.token, email: 'famille.simon@example.com', password: 'motdepasse1', acceptRules: true } });
+  // Un compte activé ne peut plus être « réclamé »
+  assert.equal((await client()('/auth/claim', { method: 'POST', body: { lastName: 'SIMON', firstName: 'Arthur', phone: '0611765837' } })).status, 404);
+  // Connexion par email partagé + même mot de passe → choix du membre ; par identifiant → direct
+  const c = client();
+  r = await c('/auth/login', { method: 'POST', body: { login: 'famille.simon@example.com', password: 'motdepasse1' } });
+  assert.equal(r.status, 300);
+  const jeanne = r.body.choose.find((x) => x.firstName === 'Jeanne');
+  r = await c('/auth/login', { method: 'POST', body: { login: 'famille.simon@example.com', password: 'motdepasse1', userId: jeanne.id } });
+  assert.equal(r.body.user.firstName, 'Jeanne');
+  assert.equal((await client()('/auth/login', { method: 'POST', body: { login: 'arthur.simon', password: 'motdepasse1' } })).body.user.firstName, 'Arthur');
+  // Mot de passe perdu : Eric efface le mot de passe et donne un code
+  const arthurId = db.prepare("SELECT id FROM users WHERE login = 'arthur.simon'").get().id;
+  r = await admin(`/admin/members/${arthurId}/reset-access`, { method: 'POST', body: {} });
+  assert.match(r.body.code, /^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  assert.equal(r.body.emailed, true);
+  assert.equal((await client()('/auth/login', { method: 'POST', body: { login: 'arthur.simon', password: 'motdepasse1' } })).body.code, 'pending');
+  const d = client();
+  const claim = await d('/auth/claim', { method: 'POST', body: { code: r.body.code.toLowerCase() } });
+  assert.equal(claim.body.firstName, 'Arthur');
+  await d('/auth/activate', { method: 'POST', body: { token: claim.body.token, email: 'famille.simon@example.com', password: 'nouveau-mdp1' } });
+  assert.equal((await client()('/auth/login', { method: 'POST', body: { login: 'arthur.simon', password: 'nouveau-mdp1' } })).status, 200);
+  assert.equal((await client()('/auth/claim', { method: 'POST', body: { code: r.body.code } })).status, 404); // code à usage unique
+  assert.equal((await alice(`/admin/members/${arthurId}/reset-access`, { method: 'POST', body: {} })).status, 403);
+  // Eric saisit la licence
+  r = await admin(`/admin/members/${arthurId}`, { method: 'PUT', body: { firstName: 'Arthur', lastName: 'SIMON', email: 'famille.simon@example.com', phone: '0611765837',
+    category: 'Opti Loisir', licenseNumber: '976-42', licenseObtained: '2026-01-01', licenseExpires: '2027-01-01' } });
+  assert.equal(r.body.member.license.status, 'valid');
+});
+
+test('cartes obligatoires : pas de réservation sans séance disponible sur une carte', async () => {
+  db.prepare("UPDATE settings SET value = '1' WHERE key = 'require_card'").run();
+  const t = inHours(200);
+  await admin('/admin/slots', { method: 'POST', body: { date: t.date, start: '06:30', end: '07:30', capacity: 6 } });
+  await admin('/admin/slots', { method: 'POST', body: { date: t.date, start: '08:00', end: '09:00', capacity: 6 } });
+  const list = (await alice(`/slots?from=${t.date}&to=${t.date}`)).body.slots;
+  const s1 = list.find((x) => x.start === '06:30'); const s2 = list.find((x) => x.start === '08:00');
+  const aliceId = db.prepare("SELECT id FROM users WHERE email = 'alice@example.com'").get().id;
+  db.prepare('DELETE FROM cards WHERE user_id = ?').run(aliceId);
+  db.prepare("UPDATE bookings SET status = 'cancelled' WHERE user_id = ? AND status = 'booked'").run(aliceId); // repart de zéro
+  let r = await alice(`/slots/${s1.id}/book`, { method: 'POST' });
+  assert.equal(r.body.code, 'card');
+  // Carte avec 1 seule séance restante : une réservation possible, la suivante bloquée
+  const cardId = (await admin(`/admin/members/${aliceId}/cards`, { method: 'POST', body: {} })).body.card.id;
+  for (let i = 0; i < 5; i++) await admin(`/admin/members/${aliceId}/card-uses`, { method: 'POST', body: { date: '2026-10-01' } });
+  assert.equal((await alice(`/slots/${s1.id}/book`, { method: 'POST' })).status, 201);
+  r = await alice(`/slots/${s2.id}/book`, { method: 'POST' });
+  assert.match(r.body.error, /déjà réservées/);
+  // 6e séance validée → email « carte terminée »
+  await admin(`/admin/members/${aliceId}/card-uses`, { method: 'POST', body: { slotId: s1.id } });
+  assert.ok(db.prepare("SELECT 1 FROM outbox WHERE subject LIKE 'Votre carte activité est terminée%'").get());
+  assert.ok(cardId);
+  db.prepare("UPDATE settings SET value = '0' WHERE key = 'require_card'").run();
 });

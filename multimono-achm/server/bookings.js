@@ -2,6 +2,7 @@
 const config = require('./config');
 const { db, getSettings, takenSql } = require('./db');
 const notifyLib = require('./notify');
+const cards = require('./cards');
 const { HOUR, utcToLocal, licenseStatus, fmtSlot } = require('./time');
 
 class AppError extends Error {
@@ -40,12 +41,21 @@ function checkEligibility(user, slot, friendName = null) {
   if (lic.status === 'missing') {
     throw new AppError(403, friendName
       ? `${friendName} n'a pas de licence enregistrée : l'inscription est impossible pour le moment.`
-      : 'Aucune licence enregistrée. Ajoutez votre numéro et la date d\'expiration de votre licence dans votre profil pour pouvoir réserver.', { code });
+      : 'Votre licence n\'est pas encore enregistrée. Transmettez votre licence à Eric : il l\'enregistrera et vous pourrez réserver.', { code });
   }
   if (lic.status === 'expired') {
     throw new AppError(403, friendName
       ? `La licence de ${friendName} ne sera plus valide à la date de cette séance. Pour des raisons d'assurance, l'inscription est bloquée.`
-      : 'Votre licence ne sera plus valide à la date de cette séance. Pour des raisons d\'assurance, la réservation est bloquée : renouvelez votre licence puis mettez à jour votre profil.', { code });
+      : 'Votre licence ne sera plus valide à la date de cette séance. Pour des raisons d\'assurance, la réservation est bloquée : renouvelez votre licence et transmettez-la à Eric, qui mettra votre profil à jour.', { code });
+  }
+  if (getSettings().require_card === '1') {
+    const { available, remaining } = cards.bookableFor(user.id, slot.activity_id);
+    if (available <= 0) {
+      const who = friendName ? `${friendName} n'a` : 'Vous n\'avez';
+      throw new AppError(403, remaining > 0
+        ? `${who} plus de séance disponible sur la carte activité : les séances restantes sont déjà réservées. Demandez une nouvelle carte à Eric.`
+        : `${who} pas de carte activité en cours${slot.activity_id ? ' pour cette activité' : ''}. Demandez une carte (5 séances + 1 offerte) à Eric pour réserver.`, { code: 'card' });
+    }
   }
 
   if (getSettings().enforce_level === '1' && slot.level_id) {

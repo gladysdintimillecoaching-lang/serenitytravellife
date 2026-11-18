@@ -72,7 +72,7 @@ function memberItem(m, extra = '') {
   return html`<a class="item" href="#/admin/membre/${m.id}">
     <div class="avatar" style="--avatar:${safeColor(m.level?.color || '#0e7490')}">${initials(m)}</div>
     <div class="grow"><div class="name">${m.lastName.toUpperCase()} ${m.firstName}</div>
-      <div class="row" style="gap:6px;margin-top:4px">${levelBadge(m.level)} ${rewardBadge(m.reward)} ${licenseBadge(m.license)} ${extra}</div></div>
+      <div class="row" style="gap:6px;margin-top:4px">${m.level ? levelBadge(m.level) : ''} ${rewardBadge(m.reward)} ${licenseBadge(m.license)} ${extra}</div></div>
     ${icon('right', 'class="chev"')}</a>`;
 }
 
@@ -272,7 +272,7 @@ export async function slotDetail(root, id) {
     return html`<div class="item" style="box-shadow:none;border:1px solid var(--line)">${num}
       <div class="grow">
         <a class="name" href="#/admin/membre/${p.id}" style="text-decoration:none">${p.firstName} ${p.lastName.toUpperCase()}</a>
-        <div class="row" style="gap:6px;margin-top:4px">${levelBadge(p.level)} ${licenseBadge(p.sessionLicense)}
+        <div class="row" style="gap:6px;margin-top:4px">${p.level ? levelBadge(p.level) : ''} ${licenseBadge(p.sessionLicense)}
           ${p.presenceConfirmed ? html`<span class="badge ok">✓ Présence confirmée</span>` : ''}
           ${p.cardStatus.validated ? html`<span class="badge ok">🎟️ Séance validée</span>`
     : p.cardStatus.card ? html`<span class="badge ${p.cardStatus.card.remaining <= 1 ? 'sand' : ''}">🎟️ ${p.cardStatus.card.remaining} restante${p.cardStatus.card.remaining > 1 ? 's' : ''}</span>`
@@ -417,11 +417,12 @@ export async function slotDetail(root, id) {
 // ══════════ Membres ══════════
 export async function members(root) {
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
-  const filters = { level: params.get('level') || '', license: params.get('license') || '', reward: params.get('reward') || '', q: '' };
+  const filters = { level: params.get('level') || '', license: params.get('license') || '', reward: params.get('reward') || '', status: params.get('status') || '', category: params.get('category') || '', q: '' };
+  const { categories } = await api('/admin/categories');
   const qs = () => new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString();
 
   mount(root, html`
-    <div class="page-head"><h1>Membres</h1><a class="btn sm secondary" id="csv" href="#">${icon('download')} Export CSV</a></div>
+    <div class="page-head"><h1>Membres</h1><div class="row"><a class="btn sm" href="#/admin/import">${icon('plus')} Importer</a><a class="btn sm secondary" id="csv" href="#">${icon('download')} Export CSV</a></div></div>
     <div class="card form" style="gap:10px">
       <input type="search" id="q" placeholder="Rechercher (nom, email, n° licence)…" aria-label="Rechercher">
       <div class="form-grid two">
@@ -433,6 +434,11 @@ export async function members(root) {
           <option value="soon" ${filters.license === 'soon' ? 'selected' : ''}>Expire sous 30 jours</option>
           <option value="expired" ${filters.license === 'expired' ? 'selected' : ''}>Licence expirée / absente</option>
         </select>
+        <select id="status" aria-label="Filtrer par compte"><option value="">Tous les comptes</option>
+          <option value="pending" ${filters.status === 'pending' ? 'selected' : ''}>⏳ À activer</option>
+          <option value="active" ${filters.status === 'active' ? 'selected' : ''}>✓ Activés</option></select>
+        <select id="category" aria-label="Filtrer par catégorie"><option value="">Toutes les catégories</option>
+          ${categories.map((c) => html`<option value="${c.category}" ${c.category === filters.category ? 'selected' : ''}>${c.category} (${c.n})</option>`)}</select>
         <select id="reward" aria-label="Filtrer par récompense"><option value="">Toutes les récompenses</option>
           ${(state.config.rewards || []).map((r) => html`<option value="${r.rank}" ${String(r.rank) === filters.reward ? 'selected' : ''}>🏅 ${r.name}</option>`)}</select>
       </div>
@@ -444,7 +450,7 @@ export async function members(root) {
     $('#csv', root).href = `/api/admin/members.csv?${qs()}`;
     mount($('#results', root), html`
       <p class="small muted">${list.length} membre${list.length > 1 ? 's' : ''}</p>
-      ${list.length ? html`<div class="list">${list.map((m) => memberItem(m, html`${m.cards?.active ? html`<span class="badge ${m.cards.remaining <= 1 ? 'sand' : ''}">🎟️ ${m.cards.remaining} restante${m.cards.remaining > 1 ? 's' : ''}</span>` : ''}${m.lateCount ? html`<span class="badge bad">${m.lateCount} annul. tardive${m.lateCount > 1 ? 's' : ''}</span>` : ''}`))}</div>`
+      ${list.length ? html`<div class="list">${list.map((m) => memberItem(m, html`${m.accountStatus === 'pending' ? html`<span class="badge warn">⏳ À activer</span>` : ''}${m.category ? html`<span class="badge">${m.category}</span>` : ''}${m.cards?.active ? html`<span class="badge ${m.cards.remaining <= 1 ? 'sand' : ''}">🎟️ ${m.cards.remaining} restante${m.cards.remaining > 1 ? 's' : ''}</span>` : ''}${m.lateCount ? html`<span class="badge bad">${m.lateCount} annul. tardive${m.lateCount > 1 ? 's' : ''}</span>` : ''}`))}</div>`
     : emptyState('🔎', 'Aucun membre ne correspond à ces filtres.')}`);
   }
   let timer;
@@ -452,6 +458,8 @@ export async function members(root) {
   $('#level', root).addEventListener('change', (e) => { filters.level = e.target.value; load(); });
   $('#license', root).addEventListener('change', (e) => { filters.license = e.target.value; load(); });
   $('#reward', root).addEventListener('change', (e) => { filters.reward = e.target.value; load(); });
+  $('#status', root).addEventListener('change', (e) => { filters.status = e.target.value; load(); });
+  $('#category', root).addEventListener('change', (e) => { filters.category = e.target.value; load(); });
   await load();
 }
 
@@ -460,20 +468,49 @@ export async function memberDetail(root, id) {
   const rewards = state.config.rewards || [];
   mount(root, html`
     <div class="page-head"><div><a class="small" href="#/admin/membres">‹ Membres</a><h1>${m.firstName} ${m.lastName}</h1></div></div>
-    <div class="row" style="margin-bottom:14px">${levelBadge(m.level)} ${rewardBadge(m.reward)} ${licenseBadge(m.license)}</div>
+    <div class="row" style="margin-bottom:14px">${m.category ? html`<span class="badge">${m.category}</span>` : ''} ${m.level ? levelBadge(m.level) : ''} ${rewardBadge(m.reward)} ${licenseBadge(m.license)}
+      ${m.accountStatus === 'pending' ? html`<span class="badge warn">⏳ Compte à activer</span>` : html`<span class="badge ok">✓ Compte activé</span>`}</div>
     <div class="two-cols">
-      <div class="card"><h2>Carte d'inscription</h2>
+      <div>
+      <div class="card" id="access"><h2>🔑 Accès au compte</h2>
         <dl class="kv">
+          <dt>Identifiant</dt><dd>${m.login || '—'}</dd>
+          <dt>Email</dt><dd>${m.email ? html`<a href="mailto:${m.email}">${m.email}</a>` : 'pas encore donné'}</dd>
+          <dt>Statut</dt><dd>${m.accountStatus === 'pending'
+    ? (m.accessCodeActive ? 'En attente : un code d\'accès est actif' : m.activatedAt ? 'Mot de passe effacé, en attente' : 'Importé, jamais activé')
+    : html`Activé${m.activatedAt ? ` le ${fmtFull(m.activatedAt.slice(0, 10))}` : ''}`}</dd>
+        </dl>
+        <p class="small muted">Le membre a perdu son mot de passe ou n'arrive pas à activer son compte ? Effacez son mot de passe : vous obtenez un code d'accès (valable 7 jours) à lui donner par téléphone ou SMS. ${m.email ? 'Il le reçoit aussi par email.' : ''}</p>
+        <button class="btn danger-outline block" id="reset-access">🔑 Effacer le mot de passe et créer un code d'accès</button>
+      </div>
+      <form class="card form" id="fiche" novalidate><h2>📝 Fiche & licence</h2>
+        <div class="form-grid two">
+          <div class="field"><label for="f-last">Nom</label><input id="f-last" name="lastName" value="${m.lastName}" required></div>
+          <div class="field"><label for="f-first">Prénom</label><input id="f-first" name="firstName" value="${m.firstName}" required></div>
+        </div>
+        <div class="form-grid two">
+          <div class="field"><label for="f-phone">Téléphone</label><input id="f-phone" name="phone" type="tel" value="${m.phone || ''}"></div>
+          <div class="field"><label for="f-email">Email</label><input id="f-email" name="email" type="email" value="${m.email || ''}"></div>
+        </div>
+        <div class="form-grid two">
+          <div class="field"><label for="f-cat">Catégorie</label><input id="f-cat" name="category" value="${m.category || ''}" placeholder="Ex. : Opti Loisir"></div>
+          <div class="field"><label for="f-note">Note (visible par vous seul)</label><input id="f-note" name="adminNote" value="${m.adminNote || ''}"></div>
+        </div>
+        <fieldset class="form"><legend>🪪 Licence (saisie par vous)</legend>
+          <div class="field"><label for="f-lic">Numéro de licence</label><input id="f-lic" name="licenseNumber" value="${m.licenseNumber || ''}"></div>
+          <div class="form-grid two">
+            <div class="field"><label for="f-lobt">Obtenue le</label><input id="f-lobt" name="licenseObtained" type="date" value="${m.licenseObtained || ''}"></div>
+            <div class="field"><label for="f-lexp">Expire le</label><input id="f-lexp" name="licenseExpires" type="date" value="${m.licenseExpires || ''}"></div>
+          </div>
+        </fieldset>
+        <dl class="kv small">
           <dt>Né(e) le</dt><dd>${fmtFull(m.birthDate)}</dd>
-          <dt>Téléphone</dt><dd><a href="tel:${m.phone}">${m.phone}</a></dd>
-          <dt>Email</dt><dd><a href="mailto:${m.email}">${m.email}</a></dd>
-          <dt>Urgence</dt><dd>${m.emergencyName}<br><a href="tel:${m.emergencyPhone}">${m.emergencyPhone}</a></dd>
-          <dt>N° licence</dt><dd>${m.licenseNumber || '—'}</dd>
-          <dt>Obtenue le</dt><dd>${fmtFull(m.licenseObtained)}</dd>
-          <dt>Expire le</dt><dd>${fmtFull(m.licenseExpires)}</dd>
-          <dt>Règlement</dt><dd>Accepté le ${fmtFull(m.rulesAcceptedAt?.slice(0, 10))}</dd>
+          <dt>Urgence</dt><dd>${m.emergencyName || '—'}${m.emergencyPhone ? html`<br><a href="tel:${m.emergencyPhone}">${m.emergencyPhone}</a>` : ''}</dd>
+          <dt>Règlement</dt><dd>${m.rulesAcceptedAt ? `Accepté le ${fmtFull(m.rulesAcceptedAt.slice(0, 10))}` : 'Pas encore accepté'}</dd>
           <dt>Inscrit(e) le</dt><dd>${fmtFull(m.createdAt.slice(0, 10))}</dd>
         </dl>
+        <button class="btn block" type="submit">Enregistrer la fiche</button>
+      </form>
       </div>
       <div>
         <div class="card" id="cards"><div class="card-title"><h2>🎟️ Cartes activité</h2><span class="small muted">5 + 1 offerte</span></div>
@@ -534,6 +571,31 @@ export async function memberDetail(root, id) {
       try { await api(`/admin/members/${m.id}/level`, { method: 'PUT', body: formData(f) }); toast('Niveau mis à jour ✅', 'ok'); go(location.hash); } catch (err) { toast(err.message, 'bad'); }
     });
   });
+  // Fiche & licence
+  const ff = $('#fiche', root);
+  ff.addEventListener('submit', (e) => {
+    e.preventDefault();
+    busy(ff.querySelector('[type=submit]'), async () => {
+      try { await api(`/admin/members/${m.id}`, { method: 'PUT', body: formData(ff) }); toast('Fiche enregistrée ✅', 'ok'); go(location.hash); } catch (err) { showError(ff, err); }
+    });
+  });
+  // Mot de passe perdu : effacer et donner un code d'accès
+  $('#reset-access', root).addEventListener('click', async () => {
+    const ok = await modal({ title: `Effacer le mot de passe de ${m.firstName} ?`, icon: '🔑', tone: 'warn',
+      body: 'Son mot de passe actuel ne fonctionnera plus et ses connexions en cours seront fermées. Vous obtiendrez un code d\'accès à lui transmettre.',
+      actions: [{ label: 'Annuler', value: false, cls: 'secondary' }, { label: 'Effacer et créer le code', value: true, cls: 'danger' }] });
+    if (!ok) return;
+    try {
+      const r = await api(`/admin/members/${m.id}/reset-access`, { method: 'POST', body: {} });
+      await modal({ title: 'Code d\'accès créé', icon: '✅', tone: 'success',
+        body: html`<p>Donnez ce code à ${m.firstName} (valable 7 jours, une seule utilisation) :</p>
+          <p style="font-size:2rem;font-weight:800;letter-spacing:.12em;color:var(--abyss);margin:8px 0">${r.code}</p>
+          <p class="small muted">Dans l'application : « Première connexion / code d'accès » › « J'ai un code ». Identifiant : <strong>${r.login}</strong>.${r.emailed ? ' Le code lui a aussi été envoyé par email.' : ''}</p>`,
+        actions: [{ label: 'C\'est noté', value: true }] });
+      go(location.hash);
+    } catch (err) { toast(err.message, 'bad'); }
+  });
+
   // Cartes activité
   const cardsBox = $('#cards', root);
   const nc = $('#newcard', root);
@@ -756,6 +818,8 @@ export async function settings(root) {
           <span class="hint">Activité, groupe, jour, début, fin, nombre de places. Créneaux types de la semaine, créés en un clic depuis « Nouvelle séance › Planning habituel ».</span>
           <div class="list" id="tpl"></div>
           <button type="button" class="btn ghost sm" id="tpl-add" style="justify-self:start">${icon('plus')} Ajouter un créneau type</button></div>
+        <label class="check"><input type="checkbox" name="require_card" ${s.require_card === '1' ? 'checked' : ''}>
+          <span><strong>Carte activité obligatoire pour réserver</strong><br><span class="small muted">Un membre ne peut réserver que s'il lui reste des séances non réservées sur une carte valable pour l'activité. Vous pouvez toujours inscrire quelqu'un vous-même.</span></span></label>
         <div class="field"><label for="rules_text">Règlement du club</label><textarea id="rules_text" name="rules_text" rows="10" required>${s.rules_text}</textarea></div>
         <button class="btn block" type="submit">Enregistrer</button>
       </form>
@@ -822,4 +886,42 @@ export async function more(root) {
       <button class="item btn-reset" id="logout" style="border:0;font:inherit;text-align:left;cursor:pointer;width:100%"><span class="ico">👋</span><div class="grow"><div class="name">Se déconnecter</div></div></button>
     </div>`);
   $('#logout', root).addEventListener('click', logout);
+}
+
+// ══════════ Import des membres existants ══════════
+export async function importMembers(root) {
+  mount(root, html`
+    <div class="page-head"><div><a class="small" href="#/admin/membres">‹ Membres</a><h1>Importer des membres</h1></div></div>
+    <div class="card form">
+      <p>Collez la liste des membres (copier-coller depuis Word, Excel ou Google Sheets) ou choisissez un fichier CSV : <strong>une ligne par membre, colonnes catégorie, nom, prénom, téléphone</strong>.</p>
+      <p class="small muted" style="margin:0">Les membres importés sont « à activer » : à leur première connexion, ils retrouvent leur compte avec nom + prénom + téléphone, puis choisissent leur email et leur mot de passe. Les doublons (même nom, prénom et téléphone) sont ignorés.</p>
+      <input type="file" id="file" accept=".csv,.txt,.tsv,text/csv,text/plain" aria-label="Fichier CSV">
+      <textarea id="text" rows="10" placeholder="OPTI LOISIR	GLEE	Timeo	0620449771&#10;MULTIMONO	VINCENT	MATHILDE	0769490984"></textarea>
+      <div id="preview"></div>
+      <div class="btn-row"><button class="btn secondary" id="check">Vérifier</button><button class="btn" id="go" disabled>Importer</button></div>
+    </div>`);
+  const text = $('#text', root);
+  $('#file', root).addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if (f) { text.value = await f.text(); $('#check', root).click(); }
+  });
+  text.addEventListener('input', () => { $('#go', root).disabled = true; });
+  $('#check', root).addEventListener('click', (e) => busy(e.currentTarget, async () => {
+    try {
+      const r = await api('/admin/members/import', { method: 'POST', body: { text: text.value, preview: true } });
+      mount($('#preview', root), html`<p><strong>${r.total} membre${r.total > 1 ? 's' : ''}</strong> détecté${r.total > 1 ? 's' : ''}. Aperçu :</p>
+        <div class="table-wrap"><table class="table"><tr><th>Catégorie</th><th>Nom</th><th>Prénom</th><th>Téléphone</th></tr>
+        ${r.preview.map((x) => html`<tr><td>${x.category || ''}${x.note ? html` <span class="muted">(${x.note})</span>` : ''}</td><td>${x.lastName}</td><td>${x.firstName}</td><td>${x.phone || ''}</td></tr>`)}</table></div>`);
+      $('#go', root).disabled = false;
+    } catch (err) { toast(err.message, 'bad'); }
+  }));
+  $('#go', root).addEventListener('click', (e) => busy(e.currentTarget, async () => {
+    try {
+      const r = await api('/admin/members/import', { method: 'POST', body: { text: text.value } });
+      await modal({ title: 'Import terminé', icon: '✅', tone: 'success',
+        body: `${r.created} membre(s) ajouté(s)${r.skipped ? `, ${r.skipped} ignoré(s) (doublons ou lignes incomplètes)` : ''}. Ils peuvent maintenant activer leur compte avec « Première connexion ».`,
+        actions: [{ label: 'Voir les membres à activer', value: true }] });
+      location.hash = '#/admin/membres?status=pending';
+    } catch (err) { toast(err.message, 'bad'); }
+  }));
 }

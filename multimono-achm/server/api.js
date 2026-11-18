@@ -8,6 +8,7 @@ const notifyLib = require('./notify');
 const { AppError, book, cancel, confirmPresence, addGuest, removeByAdmin } = require('./bookings');
 const { REWARDS, MAX_RANK, reward } = require('./rewards');
 const cards = require('./cards');
+const accounts = require('./accounts');
 const { localToUtc, utcToLocal, todayLocal, addDays, weekdayIndex, licenseStatus, fmtDate, fmtTime } = require('./time');
 
 const router = express.Router();
@@ -74,6 +75,8 @@ function publicUser(u) {
     licenseNumber: u.license_number, licenseObtained: u.license_obtained, licenseExpires: u.license_expires,
     license: lic, level, rulesAcceptedAt: u.rules_accepted_at, createdAt: u.created_at,
     reward: u.role === 'member' ? reward(u.reward_rank) : null, rewardUpdatedAt: u.reward_updated_at || null,
+    accountStatus: u.account_status || 'active', activatedAt: u.activated_at || null, category: u.category || null,
+    profileComplete: Boolean(u.birth_date && u.emergency_name && u.emergency_phone && u.phone),
   };
 }
 
@@ -127,7 +130,7 @@ router.get('/public/config', (_req, res) => {
   const s = getSettings();
   res.json({
     clubName: s.club_name, rules: s.rules_text, licenseRenewUrl: s.license_renew_url, defaultLocation: s.default_location,
-    enforceLevel: s.enforce_level === '1', levels: levelsAll(), activities: activitiesAll(), rewards: REWARDS, today: todayLocal(),
+    enforceLevel: s.enforce_level === '1', requireCard: s.require_card === '1', levels: levelsAll(), activities: activitiesAll(), rewards: REWARDS, today: todayLocal(),
     cancelLimitHours: config.cancelLimitHours,
   });
 });
@@ -145,33 +148,81 @@ router.post('/auth/register', loginLimiter, wrap((req, res) => {
     birthDate: date(b.birthDate, 'Date de naissance'), phone: str(b.phone, 'Téléphone', { max: 30 }),
     emergencyName: str(b.emergencyName, 'Contact d\'urgence (nom)', { max: 120 }),
     emergencyPhone: str(b.emergencyPhone, 'Contact d\'urgence (téléphone)', { max: 30 }),
-    licenseNumber: str(b.licenseNumber, 'Numéro de licence', { max: 40 }),
-    licenseObtained: date(b.licenseObtained, 'Date d\'obtention'), licenseExpires: date(b.licenseExpires, 'Date d\'expiration'),
     levelId: levelId(b.levelId),
   };
-  if (data.licenseExpires < data.licenseObtained) throw new AppError(400, 'La date d\'expiration doit être postérieure à la date d\'obtention.');
-  if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw new AppError(409, 'Un compte existe déjà avec cet email. Connectez-vous ou utilisez « Mot de passe oublié ».');
-  const info = db.prepare(`INSERT INTO users (role, email, password_hash, first_name, last_name, birth_date, phone, emergency_name,
-      emergency_phone, license_number, license_obtained, license_expires, level_id, rules_accepted_at)
-      VALUES ('member', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(email, auth.hashPassword(password(b.password)), data.firstName, data.lastName, data.birthDate, data.phone,
-      data.emergencyName, data.emergencyPhone, data.licenseNumber, data.licenseObtained, data.licenseExpires, data.levelId,
-      new Date().toISOString());
+  // Déjà dans la liste du club (import) ? Il faut activer ce compte plutôt qu'en créer un second.
+  if (accounts.findClaimable(data)) {
+    throw new AppError(409, 'Vous êtes déjà dans la liste des membres du club : utilisez « Première connexion » pour activer votre compte.', { code: 'claimable' });
+  }
+  // L'email peut être partagé (famille) : chaque membre a son identifiant personnel. La licence est saisie par Eric.
+  const login = accounts.makeLogin(data.firstName, data.lastName);
+  const info = db.prepare(`INSERT INTO users (role, login, email, password_hash, first_name, last_name, birth_date, phone, emergency_name,
+      emergency_phone, level_id, rules_accepted_at, account_status, activated_at)
+      VALUES ('member', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`)
+    .run(login, email, auth.hashPassword(password(b.password)), data.firstName, data.lastName, data.birthDate, data.phone,
+      data.emergencyName, data.emergencyPhone, data.levelId, new Date().toISOString(), new Date().toISOString());
   const { token, expires } = auth.createSession(Number(info.lastInsertRowid));
   auth.setSessionCookie(res, token, expires);
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
-  notifyLib.notify(user, { type: 'welcome', title: `Bienvenue à bord, ${user.first_name} ! ⛵`, body: 'Votre carte d\'inscription est enregistrée. Vous pouvez maintenant réserver vos séances de multimono.' });
+  notifyLib.notify(user, { type: 'welcome', title: `Bienvenue à bord, ${user.first_name} ! ⛵`,
+    body: `Votre carte d'inscription est enregistrée. Votre identifiant : ${login}. Transmettez votre licence à Eric : il l'enregistrera et vous pourrez réserver.` });
   res.status(201).json({ user: publicUser(user) });
 }));
 
+/**
+ * Connexion par identifiant personnel ou par email. Un email peut être partagé par une famille :
+ * on retient les comptes dont le mot de passe correspond ; s'il y en a plusieurs, on demande lequel.
+ */
 router.post('/auth/login', loginLimiter, wrap((req, res) => {
   const login = String(req.body?.login || '').trim().toLowerCase();
   const pwd = String(req.body?.password || '');
-  const user = db.prepare('SELECT * FROM users WHERE email = ? OR login = ?').get(login, login);
-  if (!user || !auth.verifyPassword(pwd, user.password_hash)) throw new AppError(401, 'Identifiant ou mot de passe incorrect.');
+  const candidates = db.prepare('SELECT * FROM users WHERE login = ? OR email = ?').all(login, login);
+  if (candidates.length && candidates.every((u) => u.account_status === 'pending')) {
+    throw new AppError(401, 'Ce compte n\'est pas encore activé. Utilisez « Première connexion / code d\'accès » pour choisir votre mot de passe.', { code: 'pending' });
+  }
+  const ok = candidates.filter((u) => u.account_status === 'active' && u.password_hash && auth.verifyPassword(pwd, u.password_hash));
+  let user = ok[0];
+  if (ok.length > 1) {
+    const chosen = ok.find((u) => u.id === Number(req.body?.userId));
+    if (!chosen) return res.status(300).json({ choose: ok.map((u) => ({ id: u.id, firstName: u.first_name, lastName: u.last_name })) });
+    user = chosen;
+  }
+  if (!user) throw new AppError(401, 'Identifiant ou mot de passe incorrect.');
   const { token, expires } = auth.createSession(user.id);
   auth.setSessionCookie(res, token, expires);
   res.json({ user: publicUser(user) });
+}));
+
+// Première connexion : retrouver son compte importé (nom + prénom + téléphone) ou utiliser le code donné par Eric
+router.post('/auth/claim', loginLimiter, wrap((req, res) => {
+  const b = req.body || {};
+  const user = b.code ? accounts.userByCode(b.code)
+    : accounts.findClaimable({ lastName: b.lastName, firstName: b.firstName, phone: b.phone });
+  if (!user) {
+    throw new AppError(404, b.code ? 'Code d\'accès invalide ou expiré. Demandez un nouveau code à Eric.'
+      : 'Aucun compte à activer ne correspond (nom, prénom et téléphone doivent être ceux donnés au club). Demandez un code d\'accès à Eric.');
+  }
+  res.json({ token: auth.signToken({ claim: user.id }, 30 * 60000), firstName: user.first_name, lastName: user.last_name, login: user.login,
+    email: user.email || '', needsRules: !user.rules_accepted_at });
+}));
+
+router.post('/auth/activate', loginLimiter, wrap((req, res) => {
+  const p = auth.verifyToken(req.body?.token);
+  const user = p?.claim ? db.prepare("SELECT * FROM users WHERE id = ? AND role = 'member'").get(p.claim) : null;
+  if (!user) throw new AppError(400, 'Cette étape a expiré. Recommencez « Première connexion ».');
+  const email = str(req.body?.email, 'Email', { max: 160 }).toLowerCase();
+  if (!EMAIL_RE.test(email)) throw new AppError(400, 'Adresse email invalide.');
+  if (!user.rules_accepted_at && !req.body?.acceptRules) throw new AppError(400, 'Vous devez accepter le règlement du club.');
+  const now = new Date().toISOString();
+  db.transaction(() => {
+    db.prepare(`UPDATE users SET email = ?, password_hash = ?, account_status = 'active', activated_at = COALESCE(activated_at, ?),
+        rules_accepted_at = COALESCE(rules_accepted_at, ?), access_code_hash = NULL, access_code_expires = NULL WHERE id = ?`)
+      .run(email, auth.hashPassword(password(req.body?.password)), now, now, user.id);
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+  })();
+  const { token, expires } = auth.createSession(user.id);
+  auth.setSessionCookie(res, token, expires);
+  res.json({ user: publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)) });
 }));
 
 router.post('/auth/logout', (req, res) => {
@@ -182,8 +233,8 @@ router.post('/auth/logout', (req, res) => {
 
 router.post('/auth/forgot', loginLimiter, wrap((req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
-  const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
-  if (user) {
+  // Email partagé : un lien par membre de la famille
+  for (const user of db.prepare("SELECT * FROM users WHERE email = ? AND account_status = 'active'").all(email)) {
     const token = crypto.randomBytes(32).toString('base64url');
     db.prepare('INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (?, ?, ?)')
       .run(auth.sha256(token), user.id, new Date(Date.now() + 3600000).toISOString());
@@ -244,18 +295,14 @@ router.put('/me', auth.requireAuth, wrap((req, res) => {
     db.prepare('UPDATE users SET first_name = ?, email = ?, phone = ? WHERE id = ?')
       .run(str(b.firstName, 'Prénom', { max: 80 }), email, str(b.phone, 'Téléphone', { required: false, max: 30 }), u.id);
   } else {
+    // La licence est saisie par Eric uniquement ; l'email peut être partagé (famille)
     const email = str(b.email, 'Email', { max: 160 }).toLowerCase();
     if (!EMAIL_RE.test(email)) throw new AppError(400, 'Adresse email invalide.');
-    if (db.prepare('SELECT 1 FROM users WHERE email = ? AND id != ?').get(email, u.id)) throw new AppError(409, 'Email déjà utilisé par un autre compte.');
-    const obtained = date(b.licenseObtained, 'Date d\'obtention');
-    const expires = date(b.licenseExpires, 'Date d\'expiration');
-    if (expires < obtained) throw new AppError(400, 'La date d\'expiration doit être postérieure à la date d\'obtention.');
     db.prepare(`UPDATE users SET first_name = ?, last_name = ?, birth_date = ?, phone = ?, email = ?, emergency_name = ?,
-        emergency_phone = ?, license_number = ?, license_obtained = ?, license_expires = ?, level_id = ? WHERE id = ?`)
+        emergency_phone = ?, level_id = ? WHERE id = ?`)
       .run(str(b.firstName, 'Prénom', { max: 80 }), str(b.lastName, 'Nom', { max: 80 }), date(b.birthDate, 'Date de naissance'),
         str(b.phone, 'Téléphone', { max: 30 }), email, str(b.emergencyName, 'Contact d\'urgence (nom)', { max: 120 }),
-        str(b.emergencyPhone, 'Contact d\'urgence (téléphone)', { max: 30 }), str(b.licenseNumber, 'Numéro de licence', { max: 40 }),
-        obtained, expires, levelId(b.levelId), u.id);
+        str(b.emergencyPhone, 'Contact d\'urgence (téléphone)', { max: 30 }), levelId(b.levelId), u.id);
   }
   res.json({ user: publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(u.id)) });
 }));
@@ -530,12 +577,14 @@ function memberQuery(q) {
   const today = todayLocal();
   const where = ["u.role = 'member'"]; const params = [];
   if (q.level) { where.push('u.level_id = ?'); params.push(Number(q.level)); }
+  if (q.status === 'pending' || q.status === 'active') { where.push('u.account_status = ?'); params.push(q.status); }
+  if (q.category) { where.push('u.category = ?'); params.push(String(q.category)); }
   if (q.reward !== undefined && q.reward !== '') { where.push('u.reward_rank = ?'); params.push(Number(q.reward)); }
   if (q.license === 'valid') { where.push('u.license_expires >= ?'); params.push(today); }
   if (q.license === 'soon') { where.push('u.license_expires >= ? AND u.license_expires <= ?'); params.push(today, addDays(today, 30)); }
   if (q.license === 'expired') { where.push('(u.license_expires IS NULL OR u.license_expires < ?)'); params.push(today); }
   if (q.q) {
-    where.push("(u.first_name || ' ' || u.last_name || ' ' || u.email || ' ' || COALESCE(u.license_number,'') LIKE ?)");
+    where.push("(u.first_name || ' ' || u.last_name || ' ' || COALESCE(u.email,'') || ' ' || COALESCE(u.login,'') || ' ' || COALESCE(u.phone,'') || ' ' || COALESCE(u.license_number,'') LIKE ?)");
     params.push(`%${String(q.q).slice(0, 60)}%`);
   }
   return db.prepare(`SELECT u.*,
@@ -551,7 +600,7 @@ admin.get('/members', wrap((req, res) => {
 
 admin.get('/members.csv', wrap((req, res) => {
   const statusFr = { valid: 'Valide', soon: 'Expire sous 30 j', urgent: 'Expire sous 7 j', expired: 'Expirée', missing: 'Absente' };
-  const cols = ['Nom', 'Prénom', 'Date de naissance', 'Téléphone', 'Email', 'Contact urgence', 'Tél. urgence', 'N° licence',
+  const cols = ['Catégorie', 'Identifiant', 'Compte', 'Nom', 'Prénom', 'Date de naissance', 'Téléphone', 'Email', 'Contact urgence', 'Tél. urgence', 'N° licence',
     'Obtention licence', 'Expiration licence', 'Statut licence', 'Niveau', 'Récompense', 'Annulations tardives', 'Inscrit le'];
   const cell = (v) => {
     let s = v == null ? '' : String(v);
@@ -560,7 +609,7 @@ admin.get('/members.csv', wrap((req, res) => {
   };
   const rows = memberQuery(req.query).map((r) => {
     const u = publicUser(r);
-    return [u.lastName, u.firstName, u.birthDate, u.phone, u.email, u.emergencyName, u.emergencyPhone, u.licenseNumber,
+    return [u.category || '', u.login || '', u.accountStatus === 'pending' ? 'À activer' : 'Activé', u.lastName, u.firstName, u.birthDate, u.phone, u.email, u.emergencyName, u.emergencyPhone, u.licenseNumber,
       u.licenseObtained, u.licenseExpires, statusFr[u.license.status], u.level?.name || '', u.reward.name, r.late_count, u.createdAt.slice(0, 10)];
   });
   const csv = '﻿' + [cols, ...rows].map((r) => r.map(cell).join(';')).join('\r\n');
@@ -579,8 +628,53 @@ admin.get('/members/:id', wrap((req, res) => {
   const late = db.prepare('SELECT * FROM late_cancellations WHERE user_id = ? ORDER BY cancelled_at DESC').all(u.id);
   const rewardHistory = db.prepare('SELECT * FROM reward_history WHERE user_id = ? ORDER BY id DESC').all(u.id)
     .map((h) => ({ ...h, from: reward(h.previous_rank).name, to: reward(h.new_rank).name }));
-  res.json({ member: publicUser(u), upcoming, late, rewardHistory, cards: cards.cardsOf(u.id) });
+  res.json({ member: { ...publicUser(u), adminNote: u.admin_note || null, accessCodeActive: Boolean(u.access_code_hash && u.access_code_expires > new Date().toISOString()) },
+    upcoming, late, rewardHistory, cards: cards.cardsOf(u.id) });
 }));
+
+// Eric met à jour la fiche : coordonnées, catégorie, note et LICENCE (saisie par Eric uniquement)
+admin.put('/members/:id', wrap((req, res) => {
+  const u = memberById(req.params.id);
+  const b = req.body || {};
+  const email = str(b.email, 'Email', { required: false, max: 160 })?.toLowerCase() || null;
+  if (email && !EMAIL_RE.test(email)) throw new AppError(400, 'Adresse email invalide.');
+  const obtained = date(b.licenseObtained, 'Date d\'obtention', { required: false });
+  const expires = date(b.licenseExpires, 'Date d\'expiration', { required: false });
+  if (obtained && expires && expires < obtained) throw new AppError(400, 'La date d\'expiration doit être postérieure à la date d\'obtention.');
+  db.prepare(`UPDATE users SET first_name = ?, last_name = ?, email = ?, phone = ?, category = ?, admin_note = ?,
+      license_number = ?, license_obtained = ?, license_expires = ? WHERE id = ?`)
+    .run(str(b.firstName, 'Prénom', { max: 80 }), str(b.lastName, 'Nom', { max: 80 }), email, str(b.phone, 'Téléphone', { required: false, max: 30 }),
+      str(b.category, 'Catégorie', { required: false, max: 60 }), str(b.adminNote, 'Note', { required: false, max: 500 }),
+      str(b.licenseNumber, 'Numéro de licence', { required: false, max: 40 }), obtained, expires, u.id);
+  res.json({ member: publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(u.id)) });
+}));
+
+// Aider un membre qui a perdu son mot de passe : Eric efface le mot de passe et obtient un code d'accès (7 jours)
+admin.post('/members/:id/reset-access', wrap((req, res) => {
+  const u = memberById(req.params.id);
+  let code;
+  db.transaction(() => {
+    db.prepare("UPDATE users SET password_hash = '', account_status = 'pending' WHERE id = ?").run(u.id);
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(u.id);
+    db.prepare('DELETE FROM password_resets WHERE user_id = ?').run(u.id);
+    code = accounts.newAccessCode(u.id);
+  })();
+  if (u.email) notifyLib.accessCode(u, code);
+  res.json({ code, emailed: Boolean(u.email), login: u.login });
+}));
+
+// Import de la liste des membres existants (comptes « à activer »)
+admin.post('/members/import', wrap((req, res) => {
+  const rows = accounts.parseImport(req.body?.text);
+  if (!rows.length) throw new AppError(400, 'Aucune ligne lisible. Format attendu : catégorie ; nom ; prénom ; téléphone (une ligne par membre).');
+  if (rows.length > 2000) throw new AppError(400, 'Trop de lignes (2000 max).');
+  if (req.body?.preview) return res.json({ preview: rows.slice(0, 10), total: rows.length });
+  res.status(201).json(accounts.importMembers(rows));
+}));
+
+admin.get('/categories', (_req, res) => {
+  res.json({ categories: db.prepare("SELECT category, COUNT(*) n FROM users WHERE role = 'member' AND category IS NOT NULL GROUP BY category ORDER BY category").all() });
+});
 
 // Récompense : Eric change la couleur à la main ; email de félicitations seulement si le membre progresse
 admin.put('/members/:id/reward', wrap((req, res) => {
@@ -711,7 +805,7 @@ admin.get('/levels/:id/usage', wrap((req, res) => {
   });
 }));
 
-const EDITABLE_SETTINGS = ['club_name', 'default_location', 'license_renew_url', 'rules_text', 'enforce_level', 'weekly_template'];
+const EDITABLE_SETTINGS = ['club_name', 'default_location', 'license_renew_url', 'rules_text', 'enforce_level', 'require_card', 'weekly_template'];
 admin.get('/settings', (_req, res) => {
   const s = getSettings();
   res.json(Object.fromEntries(EDITABLE_SETTINGS.map((k) => [k, s[k]])));
@@ -722,7 +816,7 @@ admin.put('/settings', wrap((req, res) => {
   for (const k of EDITABLE_SETTINGS) {
     if (b[k] === undefined) continue;
     let v;
-    if (k === 'enforce_level') v = b[k] === true || b[k] === '1' ? '1' : '0';
+    if (k === 'enforce_level' || k === 'require_card') v = b[k] === true || b[k] === '1' ? '1' : '0';
     else if (k === 'weekly_template') v = JSON.stringify(readTemplate(b[k]));
     else v = str(b[k], k, { max: k === 'rules_text' ? 10000 : 300 });
     setSetting(k, v);

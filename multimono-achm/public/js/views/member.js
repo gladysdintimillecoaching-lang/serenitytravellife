@@ -201,11 +201,13 @@ export async function profile(root) {
   mount(root, html`
     <div class="page-head"><h1>Mon profil</h1></div>
     <div id="lic-banner">${licenseBanner(user)}</div>
+    ${user.profileComplete ? '' : html`<div class="banner warn"><span class="ico">📝</span><div><strong>Complétez votre carte d'inscription</strong>Date de naissance, téléphone et contact d'urgence sont nécessaires (formulaire ci-dessous).</div></div>`}
     <div class="card" style="display:flex;gap:14px;align-items:center">
       <div class="avatar" style="width:64px;height:64px;font-size:1.4rem;--avatar:${user.level?.color || '#0e7490'}">${(user.firstName[0] + (user.lastName[0] || '')).toUpperCase()}</div>
       <div class="grow">
         <h2 style="margin:0">${user.firstName} ${user.lastName}</h2>
-        <div class="row" style="margin-top:6px">${levelBadge(user.level)} ${rewardBadge(user.reward)} ${licenseBadge(user.license)}</div>
+        <div class="small muted">Identifiant : <strong>${user.login}</strong></div>
+        <div class="row" style="margin-top:6px">${user.level ? levelBadge(user.level) : ''} ${rewardBadge(user.reward)} ${licenseBadge(user.license)}</div>
       </div>
     </div>
     <div class="card">
@@ -234,11 +236,12 @@ export async function profile(root) {
         </div>
       </fieldset>
       <fieldset class="form" id="license"><legend>🪪 Licence</legend>
-        <div class="field"><label for="licenseNumber">Numéro de licence</label><input id="licenseNumber" name="licenseNumber" value="${user.licenseNumber}" required></div>
-        <div class="form-grid two">
-          <div class="field"><label for="licenseObtained">Date d'obtention</label><input id="licenseObtained" name="licenseObtained" type="date" value="${user.licenseObtained}" required></div>
-          <div class="field"><label for="licenseExpires">Date d'expiration</label><input id="licenseExpires" name="licenseExpires" type="date" value="${user.licenseExpires}" required></div>
-        </div>
+        <dl class="kv">
+          <dt>Numéro</dt><dd>${user.licenseNumber || '—'}</dd>
+          <dt>Obtenue le</dt><dd>${fmtFull(user.licenseObtained)}</dd>
+          <dt>Expire le</dt><dd>${fmtFull(user.licenseExpires)}</dd>
+        </dl>
+        <p class="small muted" style="margin:0">Votre licence est enregistrée par Eric. Après un renouvellement, transmettez-lui votre nouvelle licence.</p>
       </fieldset>
       <fieldset class="form"><legend>⛵ Niveau de navigation</legend>
         <div class="field"><label for="levelId">Niveau</label>
@@ -289,7 +292,7 @@ export async function profile(root) {
   // « Renouveler ma licence » : ouvre le site fédéral puis amène au formulaire licence
   $$('[data-renew]', root).forEach((a) => a.addEventListener('click', () => setTimeout(() => {
     $('#license', root)?.scrollIntoView({ behavior: 'smooth' });
-    toast('Après renouvellement, mettez à jour la date d\'expiration ci-dessous.');
+    toast('Après renouvellement, transmettez votre nouvelle licence à Eric.');
   }, 400)));
   $('#rules', root).addEventListener('click', showRules);
   $('#logout', root).addEventListener('click', logout);

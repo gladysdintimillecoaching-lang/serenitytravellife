@@ -110,6 +110,6 @@ public/         application web (HTML/CSS/JS sans étape de build), PWA + servic
 test/           tests automatisés (node:test)
 ```
 
-Crédit : « Application créée par Serenity Life SAS — Besoin d'une application comme celle-ci ? Contactez Gladys », avec téléphone et email, en bas de chaque page. Avec le logo (lotus) de Serenity Life, le téléphone +262 639 55 29 74 et l'email contact@serenitytravellife.com. Réglé dans `.env` (`CREDIT_NAME`, `CREDIT_PITCH`, `CREDIT_PHONE`, `CREDIT_EMAIL`, `CREDIT_LOGO`), non modifiable depuis l'application.
+Crédit : « Application créée par Serenity Life SAS — Besoin d'une application comme celle-ci ? Contactez Gladys », avec téléphone et email, en bas de la première page (connexion, inscription, première connexion) et de la dernière (Profil pour les membres, Plus pour Eric). Avec le logo (lotus) de Serenity Life, le téléphone +262 639 55 29 74 et l'email contact@serenitytravellife.com. Réglé dans `.env` (`CREDIT_NAME`, `CREDIT_PITCH`, `CREDIT_PHONE`, `CREDIT_EMAIL`, `CREDIT_LOGO`), non modifiable depuis l'application.
 
 Sécurité : mots de passe hachés (scrypt), cookies HttpOnly/SameSite, CSP stricte, limitation des tentatives de connexion, liens d'email signés (HMAC) et expirants, protection contre l'injection de formules dans l'export CSV, contrôles d'accès côté serveur.

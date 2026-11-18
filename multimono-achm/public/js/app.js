@@ -49,9 +49,12 @@ const NAV = {
   ],
 };
 
+// Crédit Serenity Life : seulement sur la première page (connexion et ses suites) et la dernière (Profil / Plus)
+const CREDIT_PAGES = ['#/connexion', '#/inscription', '#/premiere-connexion', '#/mot-de-passe-oublie', '#/profil', '#/admin/plus'];
 function renderCredit() {
   const c = state.config?.credit;
-  if (!c?.name) return mount($('#credit'), '');
+  const page = (location.hash || '#/connexion').split('?')[0];
+  if (!c?.name || !CREDIT_PAGES.includes(page)) return mount($('#credit'), '');
   const tel = (c.phone || '').replace(/[^\d+]/g, '');
   mount($('#credit'), html`${c.logo ? html`<img class="credit-logo" src="${c.logo}" alt="Logo ${c.name}" width="104" height="80" loading="lazy">` : ''}
     <p>Application créée par <strong>${c.name}</strong></p>

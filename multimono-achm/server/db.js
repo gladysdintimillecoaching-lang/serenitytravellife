@@ -161,6 +161,20 @@ if (!db.prepare('PRAGMA table_info(bookings)').all().some((c) => c.name === 'boo
   db.exec('ALTER TABLE bookings ADD COLUMN booked_by INTEGER REFERENCES users(id) ON DELETE SET NULL');
 }
 
+// Migration : couleur de récompense (0 = Blanc … 7 = Violet)
+if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'reward_rank')) {
+  db.exec('ALTER TABLE users ADD COLUMN reward_rank INTEGER NOT NULL DEFAULT 0');
+  db.exec('ALTER TABLE users ADD COLUMN reward_updated_at TEXT');
+}
+db.exec(`CREATE TABLE IF NOT EXISTS reward_history (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  previous_rank INTEGER NOT NULL,
+  new_rank INTEGER NOT NULL,
+  message TEXT,
+  awarded_at TEXT NOT NULL
+)`);
+
 const DEFAULT_SETTINGS = {
   club_name: 'Multimono ACHM',
   default_location: 'Club de voile ACHM',

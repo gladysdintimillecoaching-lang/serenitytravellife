@@ -1,4 +1,4 @@
-import { api, state, html, mount, $, $$, icon, modal, toast, busy, formData, showError, levelBadge, licenseBadge,
+import { api, state, html, mount, $, $$, icon, modal, toast, busy, formData, showError, levelBadge, licenseBadge, rewardBadge, rewardBg,
   today, addDays, mondayOf, fmtDay, fmtShort, fmtFull, fmtH, fmtWhen, hoursUntil, go } from '../lib.js';
 import { slotCard, bookFlow, friendFlow, cancelFlow, licenseBanner, emptyState, placesBar, refreshUnread } from './shared.js';
 import { showRules } from './auth.js';
@@ -197,9 +197,10 @@ export async function profile(root) {
       <div class="avatar" style="width:64px;height:64px;font-size:1.4rem;--avatar:${user.level?.color || '#0e7490'}">${(user.firstName[0] + (user.lastName[0] || '')).toUpperCase()}</div>
       <div class="grow">
         <h2 style="margin:0">${user.firstName} ${user.lastName}</h2>
-        <div class="row" style="margin-top:6px">${levelBadge(user.level)} ${licenseBadge(user.license)}</div>
+        <div class="row" style="margin-top:6px">${levelBadge(user.level)} ${rewardBadge(user.reward)} ${licenseBadge(user.license)}</div>
       </div>
     </div>
+    ${rewardCard(user.reward)}
 
     <div class="two-cols">
     <form class="card form" id="f" novalidate>
@@ -278,6 +279,22 @@ export async function profile(root) {
   }, 400)));
   $('#rules', root).addEventListener('click', showRules);
   $('#logout', root).addEventListener('click', logout);
+}
+
+/** Ma récompense : couleur actuelle, frise des 8 couleurs, prochain objectif */
+export function rewardCard(r) {
+  const all = state.config.rewards || [];
+  if (!r || !all.length) return '';
+  const next = all[r.rank + 1];
+  return html`<div class="card">
+    <div class="card-title"><h2>🏅 Ma récompense</h2>${rewardBadge(r, true)}</div>
+    <div class="reward-track" role="img" aria-label="Progression : ${r.name}, couleur ${r.rank + 1} sur ${all.length}">
+      ${all.map((x) => html`<span class="seg ${x.rank <= r.rank ? 'on' : ''} ${x.rank === r.rank ? 'current' : ''}" style="background:${rewardBg(x)}" title="${x.name}"></span>`)}
+    </div>
+    <p class="small muted" style="margin:10px 0 0">${next
+    ? html`Prochain objectif : <strong>${next.name}</strong>. Eric attribue les couleurs selon votre progression sur l'eau — continuez comme ça ! ⛵`
+    : html`Bravo, vous avez atteint la plus haute récompense du club ! 🏆`}</p>
+  </div>`;
 }
 
 export async function logout() {

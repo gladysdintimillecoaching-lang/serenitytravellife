@@ -199,6 +199,15 @@ MEMBRES
 - Bouton « Export CSV » (respecte les filtres) : séparateur point-virgule, encodage UTF-8 avec BOM pour Excel, colonnes : Nom ; Prénom ; Date de naissance ; Téléphone ; Email ; Contact urgence ; Tél. urgence ; N° licence ; Obtention licence ; Expiration licence ; Statut licence ; Niveau ; Annulations tardives ; Inscrit le. Protéger contre l'injection de formules (préfixer d'une apostrophe les cellules commençant par = + - @, une tabulation ou un retour chariot).
 - Fiche membre : toute la carte d'inscription, changement de niveau par Eric, séances à venir, historique de ses annulations tardives, bouton « Supprimer ce membre » (avec confirmation).
 
+RÉCOMPENSES (8 couleurs de progression, attribuées à la main par Eric)
+- Ordre : Blanc #F8FAFC, Jaune #FACC15, Jaune-orange (moitié #FACC15 / moitié #F97316), Orange #F97316, Orange-vert (moitié #F97316 / moitié #16A34A), Vert #16A34A, Bleu #2563EB, Violet #7C3AED. Les couleurs doubles s'affichent moitié-moitié, comme une ceinture.
+- Chaque membre commence en Blanc. Badge « 🏅 Couleur » sur le profil du membre, dans la liste des membres et la fiche membre.
+- Profil du membre : carte « 🏅 Ma récompense » avec la couleur actuelle, une frise des 8 couleurs (celles obtenues allumées, l'actuelle encadrée) et « Prochain objectif : … » (ou « Bravo, vous avez atteint la plus haute récompense du club ! 🏆 » au Violet).
+- Fiche membre côté Eric : carte « 🏅 Récompense » avec les 8 couleurs à choisir, un « Mot personnel (optionnel, ajouté à l'email) » et le bouton « Attribuer cette couleur » (fenêtre de confirmation) ; historique des changements (de → vers, date, mot).
+- Si la nouvelle couleur est SUPÉRIEURE : notification + email de félicitations. Objet « Félicitations Prénom ! Vous passez à la couleur X 🏅 », grosse pastille de la couleur en haut, texte : « Félicitations ! Eric vous a attribué la couleur X 🎉 Cette nouvelle couleur récompense votre progression, votre régularité et votre engagement sur l'eau. Bravo ! Prochain objectif : la couleur Y. Continuez à naviguer régulièrement, à écouter les conseils et à oser de nouveaux défis — chaque séance vous en rapproche ! » (au Violet : « Vous avez atteint la plus haute récompense du club. Vous êtes un exemple pour tous les membres… »), le mot d'Eric encadré s'il y en a un, boutons « Voir ma progression » et « Réserver une séance ».
+- Si la nouvelle couleur est INFÉRIEURE (correction) : aucun email.
+- Filtre par récompense dans la liste des membres, colonne « Récompense » dans l'export CSV.
+
 PLUS
 - Liens vers : Notifications, Annulations tardives (historique complet, du plus récent au plus ancien : membre, séance, « annulée X,X h avant », date), Niveaux de navigation, Réglages, Se déconnecter.
 ```

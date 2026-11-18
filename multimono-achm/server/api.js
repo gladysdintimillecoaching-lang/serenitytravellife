@@ -6,6 +6,7 @@ const { db, getSettings, setSetting, takenSql } = require('./db');
 const auth = require('./auth');
 const notifyLib = require('./notify');
 const { AppError, book, cancel, confirmPresence, addGuest, removeByAdmin } = require('./bookings');
+const { REWARDS, MAX_RANK, reward } = require('./rewards');
 const { localToUtc, utcToLocal, todayLocal, addDays, weekdayIndex, licenseStatus, fmtDate, fmtTime } = require('./time');
 
 const router = express.Router();
@@ -63,6 +64,7 @@ function publicUser(u) {
     birthDate: u.birth_date, phone: u.phone, emergencyName: u.emergency_name, emergencyPhone: u.emergency_phone,
     licenseNumber: u.license_number, licenseObtained: u.license_obtained, licenseExpires: u.license_expires,
     license: lic, level, rulesAcceptedAt: u.rules_accepted_at, createdAt: u.created_at,
+    reward: u.role === 'member' ? reward(u.reward_rank) : null, rewardUpdatedAt: u.reward_updated_at || null,
   };
 }
 
@@ -115,7 +117,7 @@ router.get('/public/config', (_req, res) => {
   const s = getSettings();
   res.json({
     clubName: s.club_name, rules: s.rules_text, licenseRenewUrl: s.license_renew_url, defaultLocation: s.default_location,
-    enforceLevel: s.enforce_level === '1', levels: levelsAll(), today: todayLocal(),
+    enforceLevel: s.enforce_level === '1', levels: levelsAll(), rewards: REWARDS, today: todayLocal(),
     cancelLimitHours: config.cancelLimitHours,
   });
 });
@@ -511,6 +513,7 @@ function memberQuery(q) {
   const today = todayLocal();
   const where = ["u.role = 'member'"]; const params = [];
   if (q.level) { where.push('u.level_id = ?'); params.push(Number(q.level)); }
+  if (q.reward !== undefined && q.reward !== '') { where.push('u.reward_rank = ?'); params.push(Number(q.reward)); }
   if (q.license === 'valid') { where.push('u.license_expires >= ?'); params.push(today); }
   if (q.license === 'soon') { where.push('u.license_expires >= ? AND u.license_expires <= ?'); params.push(today, addDays(today, 30)); }
   if (q.license === 'expired') { where.push('(u.license_expires IS NULL OR u.license_expires < ?)'); params.push(today); }
@@ -532,7 +535,7 @@ admin.get('/members', wrap((req, res) => {
 admin.get('/members.csv', wrap((req, res) => {
   const statusFr = { valid: 'Valide', soon: 'Expire sous 30 j', urgent: 'Expire sous 7 j', expired: 'Expirée', missing: 'Absente' };
   const cols = ['Nom', 'Prénom', 'Date de naissance', 'Téléphone', 'Email', 'Contact urgence', 'Tél. urgence', 'N° licence',
-    'Obtention licence', 'Expiration licence', 'Statut licence', 'Niveau', 'Annulations tardives', 'Inscrit le'];
+    'Obtention licence', 'Expiration licence', 'Statut licence', 'Niveau', 'Récompense', 'Annulations tardives', 'Inscrit le'];
   const cell = (v) => {
     let s = v == null ? '' : String(v);
     if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; // protection injection de formules
@@ -541,7 +544,7 @@ admin.get('/members.csv', wrap((req, res) => {
   const rows = memberQuery(req.query).map((r) => {
     const u = publicUser(r);
     return [u.lastName, u.firstName, u.birthDate, u.phone, u.email, u.emergencyName, u.emergencyPhone, u.licenseNumber,
-      u.licenseObtained, u.licenseExpires, statusFr[u.license.status], u.level?.name || '', r.late_count, u.createdAt.slice(0, 10)];
+      u.licenseObtained, u.licenseExpires, statusFr[u.license.status], u.level?.name || '', u.reward.name, r.late_count, u.createdAt.slice(0, 10)];
   });
   const csv = '﻿' + [cols, ...rows].map((r) => r.map(cell).join(';')).join('\r\n');
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -557,7 +560,27 @@ admin.get('/members/:id', wrap((req, res) => {
     FROM bookings b JOIN slots s ON s.id = b.slot_id LEFT JOIN levels l ON l.id = s.level_id
     WHERE b.user_id = ? AND b.status = 'booked' AND s.starts_at > ? ORDER BY s.starts_at`).all(u.id, new Date().toISOString()).map(serializeSlot);
   const late = db.prepare('SELECT * FROM late_cancellations WHERE user_id = ? ORDER BY cancelled_at DESC').all(u.id);
-  res.json({ member: publicUser(u), upcoming, late });
+  const rewardHistory = db.prepare('SELECT * FROM reward_history WHERE user_id = ? ORDER BY id DESC').all(u.id)
+    .map((h) => ({ ...h, from: reward(h.previous_rank).name, to: reward(h.new_rank).name }));
+  res.json({ member: publicUser(u), upcoming, late, rewardHistory });
+}));
+
+// Récompense : Eric change la couleur à la main ; email de félicitations seulement si le membre progresse
+admin.put('/members/:id/reward', wrap((req, res) => {
+  const u = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'member'").get(Number(req.params.id));
+  if (!u) throw new AppError(404, 'Membre introuvable.');
+  const rank = int(req.body?.rank, 'Couleur', 0, MAX_RANK);
+  const message = str(req.body?.message, 'Message', { required: false, max: 500 });
+  if (rank === u.reward_rank) throw new AppError(400, `${u.first_name} a déjà la couleur ${reward(rank).name}.`);
+  const now = new Date().toISOString();
+  db.transaction(() => {
+    db.prepare('UPDATE users SET reward_rank = ?, reward_updated_at = ? WHERE id = ?').run(rank, now, u.id);
+    db.prepare('INSERT INTO reward_history (user_id, previous_rank, new_rank, message, awarded_at) VALUES (?, ?, ?, ?, ?)')
+      .run(u.id, u.reward_rank, rank, message, now);
+  })();
+  const promoted = rank > u.reward_rank;
+  if (promoted) notifyLib.rewardPromotion(u, reward(rank), rank < MAX_RANK ? reward(rank + 1) : null, message);
+  res.json({ ok: true, promoted, reward: reward(rank) });
 }));
 
 admin.put('/members/:id/level', wrap((req, res) => {

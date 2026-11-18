@@ -1,4 +1,4 @@
-import { api, state, html, mount, $, $$, icon, modal, toast, busy, formData, showError, levelBadge, licenseBadge, safeColor,
+import { api, state, html, mount, $, $$, icon, modal, toast, busy, formData, showError, levelBadge, licenseBadge, rewardBadge, rewardBg, safeColor,
   today, addDays, mondayOf, fmtDay, fmtFull, fmtH, fmtDateTime, initials, go } from '../lib.js';
 import { placesBar, emptyState } from './shared.js';
 import { autoRefresh, weekNav, dayStrip, dayGroups, logout } from './member.js';
@@ -71,7 +71,7 @@ function memberItem(m, extra = '') {
   return html`<a class="item" href="#/admin/membre/${m.id}">
     <div class="avatar" style="--avatar:${safeColor(m.level?.color || '#0e7490')}">${initials(m)}</div>
     <div class="grow"><div class="name">${m.lastName.toUpperCase()} ${m.firstName}</div>
-      <div class="row" style="gap:6px;margin-top:4px">${levelBadge(m.level)} ${licenseBadge(m.license)} ${extra}</div></div>
+      <div class="row" style="gap:6px;margin-top:4px">${levelBadge(m.level)} ${rewardBadge(m.reward)} ${licenseBadge(m.license)} ${extra}</div></div>
     ${icon('right', 'class="chev"')}</a>`;
 }
 
@@ -390,7 +390,7 @@ export async function slotDetail(root, id) {
 // ══════════ Membres ══════════
 export async function members(root) {
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
-  const filters = { level: params.get('level') || '', license: params.get('license') || '', q: '' };
+  const filters = { level: params.get('level') || '', license: params.get('license') || '', reward: params.get('reward') || '', q: '' };
   const qs = () => new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString();
 
   mount(root, html`
@@ -406,6 +406,8 @@ export async function members(root) {
           <option value="soon" ${filters.license === 'soon' ? 'selected' : ''}>Expire sous 30 jours</option>
           <option value="expired" ${filters.license === 'expired' ? 'selected' : ''}>Licence expirée / absente</option>
         </select>
+        <select id="reward" aria-label="Filtrer par récompense"><option value="">Toutes les récompenses</option>
+          ${(state.config.rewards || []).map((r) => html`<option value="${r.rank}" ${String(r.rank) === filters.reward ? 'selected' : ''}>🏅 ${r.name}</option>`)}</select>
       </div>
     </div>
     <div id="results"></div>`);
@@ -422,14 +424,16 @@ export async function members(root) {
   $('#q', root).addEventListener('input', (e) => { clearTimeout(timer); timer = setTimeout(() => { filters.q = e.target.value.trim(); load(); }, 250); });
   $('#level', root).addEventListener('change', (e) => { filters.level = e.target.value; load(); });
   $('#license', root).addEventListener('change', (e) => { filters.license = e.target.value; load(); });
+  $('#reward', root).addEventListener('change', (e) => { filters.reward = e.target.value; load(); });
   await load();
 }
 
 export async function memberDetail(root, id) {
-  const { member: m, upcoming, late } = await api(`/admin/members/${id}`);
+  const { member: m, upcoming, late, rewardHistory = [] } = await api(`/admin/members/${id}`);
+  const rewards = state.config.rewards || [];
   mount(root, html`
     <div class="page-head"><div><a class="small" href="#/admin/membres">‹ Membres</a><h1>${m.firstName} ${m.lastName}</h1></div></div>
-    <div class="row" style="margin-bottom:14px">${levelBadge(m.level)} ${licenseBadge(m.license)}</div>
+    <div class="row" style="margin-bottom:14px">${levelBadge(m.level)} ${rewardBadge(m.reward)} ${licenseBadge(m.license)}</div>
     <div class="two-cols">
       <div class="card"><h2>Carte d'inscription</h2>
         <dl class="kv">
@@ -445,6 +449,19 @@ export async function memberDetail(root, id) {
         </dl>
       </div>
       <div>
+        <form class="card form" id="rwd"><h2>🏅 Récompense</h2>
+          <p class="small muted" style="margin:0">Couleur actuelle : ${rewardBadge(m.reward)}${m.rewardUpdatedAt ? html` · depuis le ${fmtFull(m.rewardUpdatedAt.slice(0, 10))}` : ''}</p>
+          <div class="reward-pick" role="radiogroup" aria-label="Nouvelle couleur">
+            ${rewards.map((r) => html`<label class="reward-opt">
+              <input type="radio" name="rank" value="${r.rank}" ${r.rank === m.reward.rank ? 'checked' : ''}>
+              <span class="sw" style="background:${rewardBg(r)}"></span><span>${r.name}</span></label>`)}
+          </div>
+          <div class="field"><label for="rmsg">Mot personnel (optionnel, ajouté à l'email)</label>
+            <textarea id="rmsg" name="message" rows="3" maxlength="500" placeholder="Ex. : Superbe séance samedi, ton virement de bord est devenu très propre !" style="min-height:90px"></textarea></div>
+          <button class="btn block" type="submit">Attribuer cette couleur</button>
+          ${rewardHistory.length ? html`<div class="list" style="gap:6px;margin-top:4px">${rewardHistory.map((h) => html`
+            <div class="small"><strong>${h.from} → ${h.to}</strong> <span class="muted">· ${fmtDateTime(h.awarded_at)}</span>${h.message ? html`<br><span class="muted">« ${h.message} »</span>` : ''}</div>`)}</div>` : ''}
+        </form>
         <form class="card form" id="lvl"><h2>Niveau de navigation</h2>
           <select name="levelId" aria-label="Niveau"><option value="">— Non renseigné —</option>
             ${state.config.levels.map((l) => html`<option value="${l.id}" ${m.level?.id === l.id ? 'selected' : ''}>${l.name}</option>`)}</select>
@@ -462,6 +479,29 @@ export async function memberDetail(root, id) {
     e.preventDefault();
     busy(f.querySelector('button'), async () => {
       try { await api(`/admin/members/${m.id}/level`, { method: 'PUT', body: formData(f) }); toast('Niveau mis à jour ✅', 'ok'); go(location.hash); } catch (err) { toast(err.message, 'bad'); }
+    });
+  });
+  const rf = $('#rwd', root);
+  rf.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const d = formData(rf);
+    const rank = Number(rf.querySelector('input[name=rank]:checked')?.value);
+    const target = rewards[rank];
+    if (!target || rank === m.reward.rank) { toast('Choisissez une autre couleur que la couleur actuelle.', 'bad'); return; }
+    const up = rank > m.reward.rank;
+    const ok = await modal({
+      title: `${up ? 'Passer' : 'Remettre'} ${m.firstName} en ${target.name} ?`, icon: up ? '🏅' : '↩️', tone: up ? 'success' : 'warn',
+      body: up ? html`<p>${m.firstName} recevra un email et une notification de félicitations, avec son prochain objectif${d.message.trim() ? ' et votre mot personnel' : ''}.</p>`
+        : html`<p>C'est une couleur inférieure : aucun email ne sera envoyé (correction).</p>`,
+      actions: [{ label: 'Annuler', value: false, cls: 'secondary' }, { label: up ? 'Attribuer et féliciter' : 'Corriger la couleur', value: true }],
+    });
+    if (!ok) return;
+    await busy(rf.querySelector('[type=submit]'), async () => {
+      try {
+        const r = await api(`/admin/members/${m.id}/reward`, { method: 'PUT', body: { rank, message: d.message } });
+        toast(r.promoted ? `${m.firstName} passe en ${target.name} — email de félicitations envoyé 🎉` : 'Couleur corrigée.', 'ok');
+        go(location.hash);
+      } catch (err) { toast(err.message, 'bad'); }
     });
   });
   $('#del', root).addEventListener('click', async () => {

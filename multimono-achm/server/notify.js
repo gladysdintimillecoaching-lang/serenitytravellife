@@ -4,6 +4,7 @@ const { db, getSettings } = require('./db');
 const { renderEmail, queueEmail } = require('./mailer');
 const { signToken } = require('./auth');
 const { fmtDate, fmtTime, DAY } = require('./time');
+const { background } = require('./rewards');
 
 const insertNotif = db.prepare('INSERT INTO notifications (user_id, type, title, body, data) VALUES (?, ?, ?, ?, ?)');
 const levelStmt = db.prepare('SELECT name FROM levels WHERE id = ?');
@@ -150,6 +151,30 @@ function birthday(user) {
   });
 }
 
+function rewardPromotion(user, r, next, message) {
+  const lines = [`Bonjour ${user.first_name},`, `Félicitations ! Eric vous a attribué la couleur ${r.name} 🎉`,
+    'Cette nouvelle couleur récompense votre progression, votre régularité et votre engagement sur l\'eau. Bravo !'];
+  if (next) {
+    lines.push(`Prochain objectif : la couleur ${next.name}. Continuez à naviguer régulièrement, à écouter les conseils et à oser de nouveaux défis — chaque séance vous en rapproche !`);
+  } else {
+    lines.push('Vous avez atteint la plus haute récompense du club. Vous êtes un exemple pour tous les membres : continuez à partager votre passion et à faire progresser les autres !');
+  }
+  lines.push('Bon vent et à très vite sur l\'eau !', `Eric et l'équipe ${getSettings().club_name}`);
+  notify(user, {
+    type: 'reward',
+    title: `Nouvelle récompense : ${r.name} 🏅`,
+    body: `Félicitations ! Vous passez à la couleur ${r.name}.${next ? ` Prochain objectif : ${next.name} !` : ' C\'est la plus haute récompense du club !'}`,
+    data: { rank: r.rank },
+    email: {
+      subject: `Félicitations ${user.first_name} ! Vous passez à la couleur ${r.name} 🏅`,
+      lines,
+      highlight: { label: `🏅 ${r.name}`, color: r.colors[0], background: background(r), ink: r.ink },
+      quote: message ? `Le mot d'Eric : « ${message} »` : null,
+      buttons: [{ label: 'Voir ma progression', url: `${config.appUrl}/#/profil` }, { label: 'Réserver une séance', url: `${config.appUrl}/#/calendrier`, color: '#0b3954' }],
+    },
+  });
+}
+
 function lateCancellation(member, slot, hoursBefore) {
   for (const a of admins()) {
     notify(a, {
@@ -194,4 +219,4 @@ function passwordReset(user, token) {
   }));
 }
 
-module.exports = { notify, bookingConfirmed, reminder, slotChanged, slotDeleted, removedByAdmin, cancelledByFriend, birthday, lateCancellation, licenseAlert, passwordReset };
+module.exports = { notify, bookingConfirmed, reminder, slotChanged, slotDeleted, removedByAdmin, cancelledByFriend, birthday, rewardPromotion, lateCancellation, licenseAlert, passwordReset };

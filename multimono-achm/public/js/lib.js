@@ -67,6 +67,14 @@ export function today() {
 export const levelBadge = (level) => (level
   ? html`<span class="badge level" style="background:${safeColor(level.color)}">${level.name}</span>`
   : html`<span class="badge">Tous niveaux</span>`);
+/** Récompense : pastille couleur (moitié-moitié pour les couleurs doubles) */
+const okHex = (c) => /^#[0-9a-f]{6}$/i.test(c || '');
+export const rewardBg = (r) => {
+  const c = (r?.colors || []).filter(okHex);
+  return c.length === 2 ? `linear-gradient(90deg, ${c[0]} 0 50%, ${c[1]} 50% 100%)` : c[0] || '#F8FAFC';
+};
+export const rewardBadge = (r, big = false) => (r
+  ? html`<span class="badge reward ${big ? 'big' : ''}" style="background:${rewardBg(r)};color:${okHex(r.ink) ? r.ink : '#0B3954'}">🏅 ${r.name}</span>` : '');
 export const safeColor = (c) => (/^#[0-9a-f]{6}$/i.test(c || '') ? c : '#22b8cf');
 
 export function licenseBadge(lic) {

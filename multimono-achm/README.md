@@ -24,6 +24,7 @@ Langue : français · Fuseau horaire : **Indian/Mayotte (UTC+3)**.
 - Inscriptions par le gérant : **inscrire un membre** (téléphone, en direct), **réserver des places pour un invité ou un groupe** sans compte (ex. un groupe de 5), **retirer un participant** (prévenu, sans pénalité).
 - Membres : filtres (niveau, licence valide / bientôt expirée / expirée), recherche, **export CSV** (compatible Excel).
 - Historique des annulations tardives.
+- **Récompenses** : 8 couleurs de progression — Blanc, Jaune, Jaune-orange, Orange, Orange-vert, Vert, Bleu, Violet (les couleurs doubles s'affichent moitié-moitié). Chaque membre commence en Blanc ; Eric change la couleur à la main dans la fiche du membre, avec un mot personnel optionnel. Si le membre progresse, il reçoit une notification et un email de félicitations avec son prochain objectif (message spécial au Violet). Une correction vers une couleur inférieure n'envoie rien. Historique, filtre et colonne CSV inclus ; le membre voit sa couleur et sa frise de progression dans son profil.
 - Niveaux : création, renommage, suppression, ordre, **couleur au choix**.
 - Réglages : nom, lieu par défaut, règlement, lien de renouvellement de licence, option « bloquer les réservations sous le niveau requis ».
 

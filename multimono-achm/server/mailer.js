@@ -20,7 +20,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
  * Gabarit HTML des emails (styles en ligne pour la compatibilité des messageries).
  * lines : paragraphes (texte brut, échappé) ; buttons : [{ label, url, color }]
  */
-function renderEmail({ title, lines = [], details = [], buttons = [], footnote }) {
+function renderEmail({ title, lines = [], details = [], buttons = [], footnote, highlight, quote }) {
   const club = esc(getSettings().club_name);
   const detailRows = details.map(([k, v]) => `
       <tr><td style="padding:6px 0;color:#5b7a8c;font-size:14px;width:110px">${esc(k)}</td>
@@ -37,7 +37,11 @@ function renderEmail({ title, lines = [], details = [], buttons = [], footnote }
         <div style="font-size:21px;font-weight:700;margin-top:6px">${esc(title)}</div>
       </td></tr>
       <tr><td style="padding:22px 26px;color:#1f3b4d;font-size:15px;line-height:1.55">
+        ${highlight ? `<div style="text-align:center;margin:6px 0 18px"><span style="display:inline-block;padding:14px 34px;border-radius:999px;
+           background:${highlight.color};${highlight.background ? `background:${highlight.background};` : ''}color:${highlight.ink};font-weight:800;font-size:20px;
+           border:2px solid #d6e9ee;text-shadow:0 1px 1px rgba(0,0,0,.15)">${esc(highlight.label)}</span></div>` : ''}
         ${lines.map((l) => `<p style="margin:0 0 12px">${esc(l)}</p>`).join('')}
+        ${quote ? `<p style="margin:0 0 14px;padding:14px 16px;border-left:4px solid #22b8cf;background:#ecfeff;border-radius:8px;font-style:italic">${esc(quote)}</p>` : ''}
         ${detailRows ? `<table role="presentation" style="margin:8px 0 14px;border-top:1px solid #e3eef2;border-bottom:1px solid #e3eef2;width:100%">${detailRows}</table>` : ''}
         ${btns ? `<div style="margin-top:10px">${btns}</div>` : ''}
         ${footnote ? `<p style="margin:16px 0 0;padding:12px 14px;border-radius:12px;background:#fff7e6;color:#8a5a00;font-size:14px">${esc(footnote)}</p>` : ''}

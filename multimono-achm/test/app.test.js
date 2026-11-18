@@ -283,3 +283,31 @@ test('joyeux anniversaire : le jour J, une seule fois par an, 29 février géré
   assert.equal(scheduler.sendBirthdayWishes('2028-02-28'), 0); // 2028 bissextile → le 29
   assert.equal(scheduler.sendBirthdayWishes('2028-02-29'), 1);
 });
+
+test('récompenses : 8 couleurs, Eric change à la main, email de félicitations si progression', async () => {
+  const cfg = (await alice('/public/config')).body;
+  assert.deepEqual(cfg.rewards.map((r) => r.name), ['Blanc', 'Jaune', 'Jaune-orange', 'Orange', 'Orange-vert', 'Vert', 'Bleu', 'Violet']);
+  const aliceId = db.prepare("SELECT id FROM users WHERE email = 'alice@example.com'").get().id;
+  assert.equal((await alice('/me')).body.user.reward.name, 'Blanc');
+  assert.equal((await alice(`/admin/members/${aliceId}/reward`, { method: 'PUT', body: { rank: 3 } })).status, 403);
+  const count = () => db.prepare("SELECT COUNT(*) n FROM outbox WHERE subject LIKE 'Félicitations%'").get().n;
+  const before = count();
+  let r = await admin(`/admin/members/${aliceId}/reward`, { method: 'PUT', body: { rank: 5, message: 'Bravo pour samedi !' } });
+  assert.equal(r.body.promoted, true);
+  assert.equal(count(), before + 1);
+  const mail = db.prepare("SELECT subject, html FROM outbox WHERE subject LIKE 'Félicitations%' ORDER BY id DESC").get();
+  assert.match(mail.subject, /couleur Vert/);
+  assert.match(mail.html, /Prochain objectif : la couleur Bleu/);
+  assert.match(mail.html, /Bravo pour samedi/);
+  assert.equal((await admin(`/admin/members/${aliceId}/reward`, { method: 'PUT', body: { rank: 5 } })).status, 400);
+  r = await admin(`/admin/members/${aliceId}/reward`, { method: 'PUT', body: { rank: 4 } }); // correction
+  assert.equal(r.body.promoted, false);
+  assert.equal(count(), before + 1);
+  await admin(`/admin/members/${aliceId}/reward`, { method: 'PUT', body: { rank: 7 } });
+  assert.match(db.prepare("SELECT html FROM outbox WHERE subject LIKE 'Félicitations%' ORDER BY id DESC").get().html, /plus haute récompense/);
+  const detail = (await admin(`/admin/members/${aliceId}`)).body;
+  assert.equal(detail.member.reward.name, 'Violet');
+  assert.equal(detail.rewardHistory.length, 3);
+  assert.deepEqual((await admin('/admin/members?reward=7')).body.members.map((m) => m.email), ['alice@example.com']);
+  assert.ok((await admin('/admin/members.csv')).body.includes('Récompense'));
+});

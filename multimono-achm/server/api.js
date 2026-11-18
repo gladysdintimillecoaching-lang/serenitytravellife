@@ -444,9 +444,11 @@ admin.post('/slots/template', wrap((req, res) => {
   const result = db.transaction(() => {
     const seriesId = Number(db.prepare('INSERT INTO series (description) VALUES (?)').run('Planning habituel').lastInsertRowid);
     let created = 0; let skipped = 0;
-    for (let d = from; d <= until; d = addDays(d, 1)) {
+    const now = new Date().toISOString();
+    for (let d = from < todayLocal() ? todayLocal() : from; d <= until; d = addDays(d, 1)) {
       for (const t of tpl.filter((x) => x.weekday === weekdayIndex(d))) {
         const startsAt = localToUtc(d, t.start);
+        if (startsAt <= now) continue; // jamais de séance déjà commencée
         if (exists.get(startsAt)) { skipped++; continue; } // pas de doublon si déjà créée
         ins.run(startsAt, localToUtc(d, t.end), t.capacity, t.levelId, location, seriesId);
         if (++created > 400) throw new AppError(400, 'Trop de séances d\'un coup (400 max). Réduisez la période.');

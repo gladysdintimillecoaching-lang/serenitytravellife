@@ -27,7 +27,7 @@ DESIGN
 
 RÔLES
 1. Participant : s'inscrit, gère son profil, réserve et annule ses créneaux.
-2. Gérant (Eric) : accès administrateur. Il se connecte avec un identifiant (« eric ») et un mot de passe. Un seul compte gérant, créé à l'installation.
+2. Gérant (Eric) : accès administrateur. Il se connecte avec un identifiant (« eric ») et un mot de passe. Un seul compte gérant, créé à l'installation. Son mot de passe initial NE doit PAS être écrit dans le code ni deviné : lis-le depuis un secret de configuration du projet nommé ADMIN_PASSWORD (que je définirai moi-même) ; dis-moi où le définir. Au premier accès, propose à Eric de le changer.
 
 CARTE D'INSCRIPTION DU PARTICIPANT (formulaire en 3 étapes avec barre de progression)
 - Étape 1 « Vos coordonnées » : nom, prénom, date de naissance, téléphone, email ; contact d'urgence (nom + téléphone).
@@ -97,7 +97,10 @@ RÉSERVATION EN UN CLIC
   • pas de réservation d'une séance déjà commencée ;
   • pas de double réservation de la même séance ;
   • pas de dépassement du nombre de places (les places prises = réservations actives + places réservées pour des invités, voir message 4) ;
-  • LICENCE : si aucune licence n'est enregistrée, ou si la licence sera expirée à la DATE DE LA SÉANCE, la réservation est bloquée avec une fenêtre « Réservation bloquée » expliquant : « Votre licence ne sera plus valide à la date de cette séance. Pour des raisons d'assurance, la réservation est bloquée : renouvelez votre licence puis mettez à jour votre profil. » Boutons : « Renouveler ma licence » (ouvre le lien des Réglages) et « Mettre à jour mon profil ».
+  • LICENCE : la réservation est bloquée avec une fenêtre « Réservation bloquée », avec deux messages distincts :
+    – aucune licence enregistrée : « Aucune licence enregistrée. Ajoutez votre numéro et la date d'expiration de votre licence dans votre profil pour pouvoir réserver. »
+    – licence expirée à la DATE DE LA SÉANCE : « Votre licence ne sera plus valide à la date de cette séance. Pour des raisons d'assurance, la réservation est bloquée : renouvelez votre licence puis mettez à jour votre profil. »
+    Boutons : « Renouveler ma licence » (ouvre le lien des Réglages) et « Mettre à jour mon profil ».
   • si l'option « Bloquer sous le niveau requis » est active : le niveau du participant doit être au moins égal (selon l'ordre des niveaux) au niveau requis.
 - Le compte gérant ne réserve pas pour lui-même.
 
@@ -188,7 +191,7 @@ SÉANCES
 MEMBRES
 - Recherche (nom, email, n° de licence) et filtres : niveau ; licence (toutes / valide / expire sous 30 jours / expirée ou absente).
 - Chaque ligne : initiales sur la couleur du niveau, NOM Prénom, badge de niveau, badge de licence, badge rouge « N annul. tardives » le cas échéant.
-- Bouton « Export CSV » (respecte les filtres) : séparateur point-virgule, encodage UTF-8 avec BOM pour Excel, colonnes : Nom ; Prénom ; Date de naissance ; Téléphone ; Email ; Contact urgence ; Tél. urgence ; N° licence ; Obtention licence ; Expiration licence ; Statut licence ; Niveau ; Annulations tardives ; Inscrit le. Protéger contre l'injection de formules (préfixer d'une apostrophe les cellules commençant par = + - @).
+- Bouton « Export CSV » (respecte les filtres) : séparateur point-virgule, encodage UTF-8 avec BOM pour Excel, colonnes : Nom ; Prénom ; Date de naissance ; Téléphone ; Email ; Contact urgence ; Tél. urgence ; N° licence ; Obtention licence ; Expiration licence ; Statut licence ; Niveau ; Annulations tardives ; Inscrit le. Protéger contre l'injection de formules (préfixer d'une apostrophe les cellules commençant par = + - @, une tabulation ou un retour chariot).
 - Fiche membre : toute la carte d'inscription, changement de niveau par Eric, séances à venir, historique de ses annulations tardives, bouton « Supprimer ce membre » (avec confirmation).
 
 PLUS
@@ -216,7 +219,7 @@ Finalise l'application :
 
 ## Avant de publier
 
-1. **Compte gérant** : connectez-vous avec l'identifiant `eric`, changez le mot de passe dans Réglages et renseignez l'email d'Eric (il reçoit les alertes).
+1. **Compte gérant** : définissez le secret `ADMIN_PASSWORD` dans le projet Hercules (Hercules vous indique où), connectez-vous avec l'identifiant `eric` et ce mot de passe, puis changez-le dans Réglages et renseignez l'email d'Eric (il reçoit les alertes).
 2. **Emails** : dans Hercules, configurez l'expéditeur (idéalement une adresse du club) pour que les emails n'arrivent pas en spam. Testez une réservation : l'email de confirmation doit arriver.
 3. **Rappel H-24** : créez une séance qui commence dans un peu plus de 24 h, réservez-la, et vérifiez que le rappel arrive à l'heure.
 4. **Données de démonstration** : supprimez-les avant le lancement.

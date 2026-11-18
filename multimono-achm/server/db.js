@@ -173,7 +173,11 @@ const DEFAULT_SETTINGS = {
 const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) insertSetting.run(k, v);
 // Ancien lieu provisoire remplacé par le vrai nom (sans toucher un lieu déjà personnalisé)
-db.prepare("UPDATE settings SET value = 'Club de voile ACHM' WHERE key = 'default_location' AND value = 'Base nautique ACHM'").run();
+// (une seule fois : si Eric choisit ensuite ce nom, il est conservé)
+if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migration_location_v1'").get()) {
+  db.prepare("UPDATE settings SET value = 'Club de voile ACHM' WHERE key = 'default_location' AND value = 'Base nautique ACHM'").run();
+  db.prepare("INSERT INTO settings (key, value) VALUES ('migration_location_v1', '1')").run();
+}
 
 if (db.prepare('SELECT COUNT(*) n FROM levels').get().n === 0) {
   const ins = db.prepare('INSERT INTO levels (name, color, sort_order) VALUES (?, ?, ?)');

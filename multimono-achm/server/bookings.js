@@ -59,6 +59,7 @@ function book(user, slotId, { byAdmin = false } = {}) {
 const addGuest = db.transaction((slotId, { name, places, phone, note }) => {
   const slot = slotStmt.get(slotId);
   if (!slot) throw new AppError(404, 'Séance introuvable.');
+  if (new Date(slot.starts_at) <= new Date()) throw new AppError(400, 'Cette séance a déjà commencé.');
   const free = slot.capacity - takenStmt.get(slotId).n;
   if (places > free) throw new AppError(409, free > 0 ? `Il ne reste que ${free} place${free > 1 ? 's' : ''} sur cette séance.` : 'Cette séance est complète.');
   return Number(db.prepare('INSERT INTO slot_guests (slot_id, name, places, phone, note) VALUES (?, ?, ?, ?, ?)')

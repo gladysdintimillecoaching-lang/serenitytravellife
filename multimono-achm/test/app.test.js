@@ -222,3 +222,13 @@ test('gérant : invité/groupe sur plusieurs places, inscription et retrait d\'u
   assert.equal((await admin(`/admin/guests/${detail.guests[0].id}`, { method: 'DELETE' })).status, 200);
   assert.equal((await alice(`/slots/${slot.id}/book`, { method: 'POST' })).status, 201);
 });
+
+test('revue : pas d\'invités sur une séance passée, planning sans séance passée', async () => {
+  const start = new Date(Date.now() - 3600000);
+  const pastId = Number(db.prepare('INSERT INTO slots (starts_at, ends_at, capacity) VALUES (?, ?, 6)')
+    .run(start.toISOString(), new Date(start.getTime() + 7200000).toISOString()).lastInsertRowid);
+  assert.equal((await admin(`/admin/slots/${pastId}/guests`, { method: 'POST', body: { name: 'X', places: 1 } })).status, 400);
+  const before = db.prepare('SELECT COUNT(*) n FROM slots WHERE starts_at < ?').get(new Date().toISOString()).n;
+  await admin('/admin/slots/template', { method: 'POST', body: { from: addDays(todayLocal(), -14), until: addDays(todayLocal(), 1) } });
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM slots WHERE starts_at < ?').get(new Date().toISOString()).n, before);
+});

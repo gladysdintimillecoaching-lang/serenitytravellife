@@ -232,7 +232,8 @@ const ACTIVITIES = [
 /** Planning de l'école de voile (0 = lundi … 6 = dimanche) */
 function schoolTemplate() {
   const id = (name) => db.prepare('SELECT id FROM activities WHERE name = ?').get(name)?.id ?? null;
-  const cap = (name) => (name.startsWith('Planche à voile') ? 4 : 6); // PAV : 4 personnes par séance
+  // Places par séance : PAV 4, Opti Loisir 12, sinon 6
+  const cap = (name) => (name.startsWith('Planche à voile') ? 4 : name === 'Opti Loisir' ? 12 : 6);
   const row = (activity, weekday, start, end, label = null) => ({ activityId: id(activity), label, weekday, start, end, capacity: cap(activity) });
   return [
     row('École de sport', 2, '14:00', '16:30'),
@@ -296,6 +297,23 @@ if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migration_activities_v1'").
       db.prepare("UPDATE settings SET value = ? WHERE key = 'weekly_template'").run(JSON.stringify(schoolTemplate()));
     }
     db.prepare("INSERT INTO settings (key, value) VALUES ('migration_activities_v1', '1')").run();
+  })();
+}
+
+// Opti Loisir : 12 participants maximum (activité, planning habituel, séances à venir)
+if (!db.prepare("SELECT 1 FROM settings WHERE key = 'migration_opti_capacity_v1'").get()) {
+  db.transaction(() => {
+    const opti = db.prepare("SELECT id FROM activities WHERE name = 'Opti Loisir'").all().map((a) => a.id);
+    for (const id of opti) {
+      db.prepare('UPDATE activities SET capacity = 12 WHERE id = ?').run(id);
+      db.prepare('UPDATE slots SET capacity = 12 WHERE activity_id = ? AND capacity < 12 AND starts_at > ?').run(id, new Date().toISOString());
+    }
+    try {
+      const raw = db.prepare("SELECT value FROM settings WHERE key = 'weekly_template'").get()?.value;
+      const tpl = JSON.parse(raw || '[]').map((r) => (opti.includes(r.activityId) ? { ...r, capacity: 12 } : r));
+      db.prepare("UPDATE settings SET value = ? WHERE key = 'weekly_template'").run(JSON.stringify(tpl));
+    } catch { /* planning illisible : laissé tel quel */ }
+    db.prepare("INSERT INTO settings (key, value) VALUES ('migration_opti_capacity_v1', '1')").run();
   })();
 }
 

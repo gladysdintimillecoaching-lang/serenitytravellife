@@ -49,7 +49,17 @@ const NAV = {
   ],
 };
 
+function renderCredit() {
+  const c = state.config?.credit;
+  if (!c?.name) return mount($('#credit'), '');
+  const tel = (c.phone || '').replace(/[^\d+]/g, '');
+  mount($('#credit'), html`<p>Application créée par <strong>${c.name}</strong></p>
+    ${c.pitch ? html`<p class="pitch">${c.pitch}</p>` : ''}
+    ${c.phone || c.email ? html`<p>${c.phone ? html`📞 <a href="tel:${tel}">${c.phone}</a>` : ''}${c.phone && c.email ? ' · ' : ''}${c.email ? html`✉️ <a href="mailto:${c.email}">${c.email}</a>` : ''}</p>` : ''}`);
+}
+
 export function renderChrome() {
+  renderCredit();
   const hash = location.hash.split('?')[0];
   const nav = state.user ? NAV[state.user.role] : null;
   const isActive = (h) => (h === '#/admin' ? hash === h : hash.startsWith(h));

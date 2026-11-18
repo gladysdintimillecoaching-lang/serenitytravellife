@@ -132,6 +132,7 @@ router.get('/public/config', (_req, res) => {
     clubName: s.club_name, rules: s.rules_text, licenseRenewUrl: s.license_renew_url, defaultLocation: s.default_location,
     enforceLevel: s.enforce_level === '1', requireCard: s.require_card === '1', levels: levelsAll(), activities: activitiesAll(), rewards: REWARDS, today: todayLocal(),
     cancelLimitHours: config.cancelLimitHours,
+    credit: config.credit,
   });
 });
 

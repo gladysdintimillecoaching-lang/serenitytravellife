@@ -453,3 +453,10 @@ table.table { width: 100%; border-collapse: collapse; font-size: .92rem; }
 .cbox.gift.used { border-color: var(--sand-ink); background: var(--sand); }
 .cbox .cundo { position: absolute; top: -8px; right: -6px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--danger); color: #fff; font-weight: 800; cursor: pointer; line-height: 1; }
 .cardv.done { opacity: .75; }
+
+/* Crédit du créateur, en bas de chaque page */
+.credit { max-width: 1080px; margin: 8px auto 0; padding: 18px 16px 8px; text-align: center; color: var(--muted); font-size: .82rem; }
+.credit p { margin: 2px 0; }
+.credit a { color: var(--ocean); text-decoration: none; font-weight: 600; }
+.credit:empty { display: none; }
+.credit .pitch { color: var(--abyss); font-weight: 600; }

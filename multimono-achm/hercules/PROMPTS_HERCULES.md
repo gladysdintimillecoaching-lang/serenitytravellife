@@ -255,6 +255,7 @@ Finalise l'application :
 - Messages d'état (toasts) en bas de l'écran : vert pour les succès, rouge pour les erreurs.
 - États vides illustrés (ex. « 🏝️ Aucune séance ce jour-là. », « ⛵ Aucune séance à venir. » avec un bouton « Réserver une séance »).
 - Accessibilité : contrastes suffisants, libellés sur tous les champs, focus visible.
+- Pied de page sur TOUTES les pages (connexion comprise), centré, discret : « Application créée par Serenity Life SAS », puis en gras « Besoin d'une application comme celle-ci ? Contactez Gladys », puis le téléphone (lien d'appel) et l'email (lien mailto) de contact. Ces textes viennent de secrets/variables de configuration du projet (CREDIT_NAME, CREDIT_PITCH, CREDIT_PHONE, CREDIT_EMAIL) et ne sont PAS modifiables par le gérant dans l'application.
 - Hors connexion : message clair « Pas de connexion internet. Vérifiez votre réseau et réessayez. »
 - Crée des données de démonstration désactivables : 8 membres fictifs avec des licences variées (valide, expire sous 30 jours, sous 7 jours, expirée) et le planning habituel sur 3 semaines, pour que je puisse tester.
 ```

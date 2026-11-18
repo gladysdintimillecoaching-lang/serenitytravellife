@@ -41,4 +41,11 @@ module.exports = {
   // pendant cette marge, sinon le bouton du rappel serait toujours « tardif ».
   reminderGraceMinutes: Number(env.REMINDER_GRACE_MINUTES || 60),
   sessionDays: 60,
+  // Crédit du créateur, en bas de chaque page (réglé à l'installation, pas modifiable par le gérant)
+  credit: {
+    name: env.CREDIT_NAME || 'Serenity Life SAS',
+    pitch: env.CREDIT_PITCH ?? 'Besoin d\'une application comme celle-ci ? Contactez Gladys',
+    phone: env.CREDIT_PHONE || '',
+    email: env.CREDIT_EMAIL || '',
+  },
 };

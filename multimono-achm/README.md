@@ -110,4 +110,6 @@ public/         application web (HTML/CSS/JS sans étape de build), PWA + servic
 test/           tests automatisés (node:test)
 ```
 
+Crédit : « Application créée par Serenity Life SAS — Besoin d'une application comme celle-ci ? Contactez Gladys », avec téléphone et email, en bas de chaque page. Réglé dans `.env` (`CREDIT_NAME`, `CREDIT_PITCH`, `CREDIT_PHONE`, `CREDIT_EMAIL`), non modifiable depuis l'application.
+
 Sécurité : mots de passe hachés (scrypt), cookies HttpOnly/SameSite, CSP stricte, limitation des tentatives de connexion, liens d'email signés (HMAC) et expirants, protection contre l'injection de formules dans l'export CSV, contrôles d'accès côté serveur.
